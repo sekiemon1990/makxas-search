@@ -74,8 +74,8 @@ http://localhost:3000 でアクセス。
 
 GitHub に push すると Vercel が自動デプロイ。`main` ブランチが本番。
 
-- 本番 URL: `claude-code-psi-eight.vercel.app`
-- Preview: 各 PR 毎に `claude-code-git-{branch}-...vercel.app`
+- 本番 URL: `makxas-search.vercel.app` (旧 `claude-code-psi-eight.vercel.app` も並行稼働)
+- Preview: 各 PR 毎に `makxas-search-git-{branch}-...vercel.app`
 
 ### CI
 
