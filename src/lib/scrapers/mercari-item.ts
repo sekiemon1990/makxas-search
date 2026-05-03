@@ -277,13 +277,6 @@ async function scrapeMercariShopProduct(
 
   const images = extractShopImages(product);
 
-  // RSC で取れない場合のフォールバック: HTML body 内の Mercari ホスト画像
-  const htmlImages = extractMercariImagesFromHtml(html);
-  log.warn("shop html images:", {
-    count: htmlImages.length,
-    sample: htmlImages.slice(0, 3),
-  });
-
   // 商品説明: 本物の説明文より長い OG 説明があればそちらを優先
   // (RSC 内の "description" は Shops 共通の注意書きを掴むことが多い)
   const productDescRaw =
@@ -346,15 +339,9 @@ async function scrapeMercariShopProduct(
     pickStr(pickObj(product, "shippingFromArea"), "name") ||
     pickStr(pickObj(product, "shipping_from_area"), "name");
 
-  // 画像優先度: RSC > HTML body > og:image
+  // 画像が空なら og:image を最低 1 枚として補完
   const finalImages =
-    images.length > 0
-      ? images
-      : htmlImages.length > 0
-        ? htmlImages
-        : ogImage
-          ? [ogImage]
-          : undefined;
+    images.length > 0 ? images : ogImage ? [ogImage] : undefined;
 
   const result: MercariItemDetail = {
     id,
@@ -758,25 +745,6 @@ function extractShopImages(o: Record<string, unknown>): string[] {
           if (typeof u === "string") out.push(u);
         }
       }
-    }
-  }
-  return out;
-}
-
-// HTML body 内の Mercari ホスト画像 (商品画像はほぼ確実にここに含まれる)
-function extractMercariImagesFromHtml(html: string): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  // <img src="..."> と Next.js Image の srcset 由来 URL の両方を拾う
-  for (const m of html.matchAll(/\bsrc=["']([^"']+)["']/g)) {
-    const url = m[1];
-    if (
-      (url.includes("mercdn.net") ||
-        url.includes("mercari-shops-static.com")) &&
-      !seen.has(url)
-    ) {
-      seen.add(url);
-      out.push(url);
     }
   }
   return out;
