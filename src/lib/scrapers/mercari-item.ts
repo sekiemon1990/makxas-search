@@ -277,6 +277,13 @@ async function scrapeMercariShopProduct(
 
   const images = extractShopImages(product);
 
+  // RSC で取れない場合のフォールバック: HTML body 内の Mercari ホスト画像
+  const htmlImages = extractMercariImagesFromHtml(html);
+  log.warn("shop html images:", {
+    count: htmlImages.length,
+    sample: htmlImages.slice(0, 3),
+  });
+
   // 商品説明: 本物の説明文より長い OG 説明があればそちらを優先
   // (RSC 内の "description" は Shops 共通の注意書きを掴むことが多い)
   const productDescRaw =
@@ -339,9 +346,15 @@ async function scrapeMercariShopProduct(
     pickStr(pickObj(product, "shippingFromArea"), "name") ||
     pickStr(pickObj(product, "shipping_from_area"), "name");
 
-  // 画像が空なら og:image を最低 1 枚として補完
+  // 画像優先度: RSC > HTML body > og:image
   const finalImages =
-    images.length > 0 ? images : ogImage ? [ogImage] : undefined;
+    images.length > 0
+      ? images
+      : htmlImages.length > 0
+        ? htmlImages
+        : ogImage
+          ? [ogImage]
+          : undefined;
 
   const result: MercariItemDetail = {
     id,
@@ -389,11 +402,48 @@ function parseRSCForProduct(
     );
 
   // 全エントリから候補を集めて、最もリッチなものを採用する
-  // (最初に見つかった score>=2 を返すと metadata オブジェクト
-  // {title, description} を誤って採用してしまうため)
   const candidates: Record<string, unknown>[] = [];
 
   const lines = combined.split("\n");
+
+  // 診断: RSC 全エントリーの種別カウントと、商品固有キーを含むエントリーを採取
+  const entryTypes = { import: 0, string: 0, array: 0, object: 0, other: 0 };
+  const productHintEntries: string[] = [];
+  const productHints = [
+    '"productImage"',
+    '"shopName"',
+    '"shopId"',
+    '"shippingPayer"',
+    '"itemCondition"',
+    '"priceAmount"',
+    '"productCondition"',
+    '"productId"',
+    '"shippingFromArea"',
+  ];
+  for (const line of lines) {
+    const colonIdx = line.indexOf(":");
+    if (colonIdx === -1) continue;
+    const entryId = line.slice(0, colonIdx);
+    const data = line.slice(colonIdx + 1);
+    if (data.startsWith("I[")) entryTypes.import++;
+    else if (data.startsWith('"')) entryTypes.string++;
+    else if (data.startsWith("[")) entryTypes.array++;
+    else if (data.startsWith("{")) entryTypes.object++;
+    else entryTypes.other++;
+
+    if (
+      (data.startsWith("[") || data.startsWith("{")) &&
+      productHints.some((h) => data.includes(h)) &&
+      productHintEntries.length < 5
+    ) {
+      productHintEntries.push(`${entryId}: ${data.slice(0, 200)}`);
+    }
+  }
+  log.warn("RSC entry types:", entryTypes);
+  log.warn("RSC entries with product hints:", {
+    found: productHintEntries.length,
+    samples: productHintEntries,
+  });
   for (const line of lines) {
     const colonIdx = line.indexOf(":");
     if (colonIdx === -1) continue;
@@ -708,6 +758,25 @@ function extractShopImages(o: Record<string, unknown>): string[] {
           if (typeof u === "string") out.push(u);
         }
       }
+    }
+  }
+  return out;
+}
+
+// HTML body 内の Mercari ホスト画像 (商品画像はほぼ確実にここに含まれる)
+function extractMercariImagesFromHtml(html: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  // <img src="..."> と Next.js Image の srcset 由来 URL の両方を拾う
+  for (const m of html.matchAll(/\bsrc=["']([^"']+)["']/g)) {
+    const url = m[1];
+    if (
+      (url.includes("mercdn.net") ||
+        url.includes("mercari-shops-static.com")) &&
+      !seen.has(url)
+    ) {
+      seen.add(url);
+      out.push(url);
     }
   }
   return out;
