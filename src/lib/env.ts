@@ -19,6 +19,7 @@ const REQUIRED_PUBLIC = [
 const REQUIRED_SERVER = [
   "ANTHROPIC_API_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
+  "ADMIN_EMAILS",
 ] as const;
 
 type PublicKey = (typeof REQUIRED_PUBLIC)[number];
@@ -54,6 +55,10 @@ export const serverEnv = {
   },
   get SUPABASE_SERVICE_ROLE_KEY(): string {
     return ensure("SUPABASE_SERVICE_ROLE_KEY", "server");
+  },
+  /** カンマ区切りの管理者メールアドレスリスト（例: admin@example.com,ops@example.com） */
+  get ADMIN_EMAILS(): string {
+    return ensure("ADMIN_EMAILS", "server");
   },
 } as const;
 

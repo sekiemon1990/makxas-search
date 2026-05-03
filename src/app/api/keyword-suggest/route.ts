@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { getRequestUserId, logApiUsage } from "@/lib/api-cost";
 
 export const runtime = "nodejs";
 export const maxDuration = 15;
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ candidates: [], warmed: true });
   }
 
-  const client = new Anthropic();
+  const [client, userId] = [new Anthropic(), await getRequestUserId()];
 
   try {
     // Haiku 4.5: autocomplete のような高頻度・低レイテンシ用途に最適
@@ -77,6 +78,14 @@ export async function POST(req: Request) {
         format: { type: "json_schema", schema: SUGGEST_SCHEMA },
       },
       messages: [{ role: "user", content: prefix }],
+    });
+
+    // 使用量を記録（レスポンスをブロックしない）
+    logApiUsage({
+      userId,
+      endpoint: "keyword-suggest",
+      model: "claude-haiku-4-5",
+      usage: response.usage,
     });
 
     const textBlock = response.content.find(
