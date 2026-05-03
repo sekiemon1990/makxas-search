@@ -174,12 +174,14 @@ async function scrapeMercariShopProduct(
   log.info("shop html size:", html.length);
 
   // 構造プローブ (どの state 機構を使っているか)
-  log.info("shop html probe:", {
+  // 本番でも見えるよう warn レベルで出力
+  log.warn("shop html probe:", {
     hasNextData: html.includes('id="__NEXT_DATA__"'),
     hasApollo: html.includes("__APOLLO_STATE__"),
     hasInitialState: html.includes("__INITIAL_STATE__"),
     hasJsonLd: html.includes('type="application/ld+json"'),
     hasRSCPayload: html.includes("self.__next_f"),
+    htmlSize: html.length,
   });
 
   // OG タグ / JSON-LD から最低限の情報を抽出 (フォールバック用)
@@ -195,19 +197,37 @@ async function scrapeMercariShopProduct(
   const ogTitle = ogPick("og:title");
   const ogDescription = ogPick("og:description");
   const ogImage = ogPick("og:image");
-  log.info("shop og:", {
+  log.warn("shop og:", {
     hasTitle: !!ogTitle,
+    titleSample: ogTitle?.slice(0, 50),
     hasDesc: !!ogDescription,
+    descLen: ogDescription?.length ?? 0,
     hasImage: !!ogImage,
   });
 
   // JSON-LD (Schema.org Product) を抽出
   const jsonLdProduct = extractJsonLdProduct(html);
   if (jsonLdProduct) {
-    log.info(
+    log.warn(
       "shop JSON-LD keys:",
       Object.keys(jsonLdProduct).slice(0, 20).join(","),
     );
+  } else {
+    log.warn("shop JSON-LD: not found or no Product type");
+  }
+
+  // RSC payload (`self.__next_f.push`) のサンプル抽出 (診断用)
+  if (html.includes("self.__next_f")) {
+    const rscMatches = Array.from(
+      html.matchAll(/self\.__next_f\.push\(\[1,\s*"((?:[^"\\]|\\.)*)"\]\)/g),
+    );
+    log.warn("shop RSC chunks:", {
+      count: rscMatches.length,
+      totalLen: rscMatches.reduce((s, m) => s + m[1].length, 0),
+      firstChunkSample: rscMatches[0]?.[1]
+        ?.slice(0, 200)
+        .replace(/\\"/g, '"'),
+    });
   }
 
   // __NEXT_DATA__ を試す
