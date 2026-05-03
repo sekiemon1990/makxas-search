@@ -34,9 +34,6 @@ const ITEM_CONDITION_LABEL: Record<number, string> = {
   6: "全体的に状態が悪い",
 };
 
-// メルカリ ID 形式の判定:
-// - C2C (個人出品): "m" + 11 桁数字 (例: m12345678901)
-// - Shops (BEYOND): 20+ 文字英数字 (例: 2JQYNqmAsfzVn35DzpxxDu)
 function isMercariShopsId(id: string): boolean {
   return !/^m\d{10,}$/i.test(id);
 }
@@ -44,7 +41,6 @@ function isMercariShopsId(id: string): boolean {
 export async function scrapeMercariItem(
   id: string,
 ): Promise<MercariItemDetail> {
-  // Shops 商品は /items/get では取れないため、SSR HTML パースに切り替え
   if (isMercariShopsId(id)) {
     return scrapeMercariShopProduct(id);
   }
@@ -88,7 +84,6 @@ export async function scrapeMercariItem(
       ? ITEM_CONDITION_LABEL[data.item_condition_id]
       : undefined);
 
-  // 送料
   const shipping: "free" | "paid" | undefined =
     data.shipping_payer?.id === 1
       ? "free"
@@ -102,7 +97,6 @@ export async function scrapeMercariItem(
     .filter(Boolean)
     .join(" / ") || undefined;
 
-  // 出品者
   const seller = data.seller;
   const sellerName = seller?.name?.trim() || undefined;
   const sellerUrl = seller?.id
@@ -144,8 +138,6 @@ export async function scrapeMercariItem(
   return result;
 }
 
-// ---- Mercari Shops (BEYOND) 商品: SSR HTML パース ----
-
 const SHOP_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36";
 
@@ -173,8 +165,6 @@ async function scrapeMercariShopProduct(
   const html = await res.text();
   log.info("shop html size:", html.length);
 
-  // 構造プローブ (どの state 機構を使っているか)
-  // 本番でも見えるよう warn レベルで出力
   log.warn("shop html probe:", {
     hasNextData: html.includes('id="__NEXT_DATA__"'),
     hasApollo: html.includes("__APOLLO_STATE__"),
@@ -184,7 +174,6 @@ async function scrapeMercariShopProduct(
     htmlSize: html.length,
   });
 
-  // OG タグ / JSON-LD から最低限の情報を抽出 (フォールバック用)
   const ogPick = (prop: string): string | undefined => {
     const m = html.match(
       new RegExp(
@@ -205,7 +194,6 @@ async function scrapeMercariShopProduct(
     hasImage: !!ogImage,
   });
 
-  // JSON-LD (Schema.org Product) を抽出
   const jsonLdProduct = extractJsonLdProduct(html);
   if (jsonLdProduct) {
     log.warn(
@@ -216,7 +204,6 @@ async function scrapeMercariShopProduct(
     log.warn("shop JSON-LD: not found or no Product type");
   }
 
-  // RSC payload (`self.__next_f.push`) のサンプル抽出 (診断用)
   if (html.includes("self.__next_f")) {
     const rscMatches = Array.from(
       html.matchAll(/self\.__next_f\.push\(\[1,\s*"((?:[^"\\]|\\.)*)"\]\)/g),
@@ -230,56 +217,66 @@ async function scrapeMercariShopProduct(
     });
   }
 
-  // __NEXT_DATA__ を試す
-  const nextDataMatch = html.match(
-    /<script\s+id="__NEXT_DATA__"\s+type="application\/json">([\s\S]*?)<\/script>/,
-  );
   let product: Record<string, unknown> | null = null;
-  if (nextDataMatch) {
-    try {
-      const data = JSON.parse(nextDataMatch[1]);
-      log.info(
-        "shop __NEXT_DATA__ top keys:",
-        typeof data === "object" && data
-          ? Object.keys(data as object).join(",")
-          : "(none)",
+
+  if (html.includes("self.__next_f")) {
+    product = parseRSCForProduct(html, id);
+    if (product) {
+      log.warn(
+        "shop product (RSC) keys:",
+        Object.keys(product).slice(0, 30).join(","),
       );
-      product = findShopProduct(data, id);
-      if (product) {
-        log.info(
-          "shop product (NEXT_DATA) keys:",
-          Object.keys(product).slice(0, 30).join(","),
-        );
-      } else {
-        log.warn(
-          "shop product not found in __NEXT_DATA__, trying lenient match",
-        );
-        // 緩い条件: id 一致なしでも name/price を持つノードを探す
-        product = findAnyProductLike(data);
-        if (product) {
-          log.info(
-            "shop product (lenient) keys:",
-            Object.keys(product).slice(0, 30).join(","),
-          );
-        }
-      }
-    } catch (e) {
-      log.error("__NEXT_DATA__ parse failed:", e);
+    } else {
+      log.warn("shop product not found in RSC payload");
     }
-  } else {
-    log.warn("__NEXT_DATA__ not found in shop page");
   }
 
-  // __NEXT_DATA__ で見つからない場合は OG / JSON-LD から組み立てる
   if (!product) {
-    log.info("falling back to OG / JSON-LD for shop product");
+    const nextDataMatch = html.match(
+      /<script\s+id="__NEXT_DATA__"\s+type="application\/json">([\s\S]*?)<\/script>/,
+    );
+    if (nextDataMatch) {
+      try {
+        const data = JSON.parse(nextDataMatch[1]);
+        log.info(
+          "shop __NEXT_DATA__ top keys:",
+          typeof data === "object" && data
+            ? Object.keys(data as object).join(",")
+            : "(none)",
+        );
+        product = findShopProduct(data, id);
+        if (product) {
+          log.info(
+            "shop product (NEXT_DATA) keys:",
+            Object.keys(product).slice(0, 30).join(","),
+          );
+        } else {
+          log.warn(
+            "shop product not found in __NEXT_DATA__, trying lenient match",
+          );
+          product = findAnyProductLike(data);
+          if (product) {
+            log.info(
+              "shop product (lenient) keys:",
+              Object.keys(product).slice(0, 30).join(","),
+            );
+          }
+        }
+      } catch (e) {
+        log.error("__NEXT_DATA__ parse failed:", e);
+      }
+    } else {
+      log.warn("__NEXT_DATA__ not found in shop page");
+    }
+  }
+
+  if (!product) {
+    log.warn("falling back to OG / JSON-LD for shop product");
     return mapFromOgAndJsonLd(id, ogTitle, ogDescription, ogImage, jsonLdProduct);
   }
 
-  // 画像: thumbnails / images / productImage[].url 等
   const images = extractShopImages(product);
 
-  // 商品説明
   const description =
     pickStr(product, "description") ||
     pickStr(product, "productDescription") ||
@@ -287,7 +284,6 @@ async function scrapeMercariShopProduct(
     ogDescription ||
     undefined;
 
-  // 状態
   const conditionId =
     pickNum(product, "itemConditionId") ??
     pickNum(product, "condition_id") ??
@@ -302,10 +298,8 @@ async function scrapeMercariShopProduct(
       ? ITEM_CONDITION_LABEL[conditionId]
       : undefined);
 
-  // 価格
   const price = pickNum(product, "price") ?? undefined;
 
-  // ショップ情報 (出品者の代わり)
   const shop = pickObj(product, "shop") ?? pickObj(product, "store");
   const sellerName =
     pickStr(product, "shopName") ||
@@ -317,7 +311,6 @@ async function scrapeMercariShopProduct(
     ? `https://jp.mercari.com/shops/${shopId}`
     : undefined;
 
-  // 送料: shipping_payer.id 1=出品者(無料) / 2=購入者
   const shippingPayerId =
     pickNum(pickObj(product, "shippingPayer"), "id") ??
     pickNum(product, "shippingPayerId");
@@ -365,7 +358,75 @@ async function scrapeMercariShopProduct(
   return result;
 }
 
-// id 一致なしでも name/price を持つ商品ノードを探す (緩い)
+// RSC payload (`self.__next_f.push([1, "..."])`) から商品データを抽出
+function parseRSCForProduct(
+  html: string,
+  productId: string,
+): Record<string, unknown> | null {
+  const matches = Array.from(
+    html.matchAll(/self\.__next_f\.push\(\[1,\s*"((?:[^"\\]|\\.)*)"\]\)/g),
+  );
+  if (matches.length === 0) return null;
+
+  const combined = matches
+    .map((m) => m[1])
+    .join("")
+    .replace(/\\n/g, "\n")
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, "\\")
+    .replace(/\\u([0-9a-f]{4})/gi, (_, c) =>
+      String.fromCharCode(parseInt(c, 16)),
+    );
+
+  const lines = combined.split("\n");
+  for (const line of lines) {
+    const colonIdx = line.indexOf(":");
+    if (colonIdx === -1) continue;
+    const data = line.slice(colonIdx + 1);
+    if (
+      (data.startsWith("[") || data.startsWith("{")) &&
+      (data.includes('"description"') ||
+        data.includes('"productName"') ||
+        data.includes('"productDescription"'))
+    ) {
+      try {
+        const parsed = JSON.parse(data);
+        const found = findShopProduct(parsed, productId);
+        if (found) return found;
+        const lenient = findAnyProductLike(parsed);
+        if (lenient) return lenient;
+      } catch {
+        // truncated chunk boundary - try next
+      }
+    }
+  }
+
+  // Fallback: scan combined text for JSON objects with product fields
+  const objCandidates = combined.matchAll(
+    /\{(?:[^{}]|\{[^{}]*\})*"description"(?:[^{}]|\{[^{}]*\})*\}/g,
+  );
+  for (const m of objCandidates) {
+    try {
+      const parsed = JSON.parse(m[0]);
+      if (parsed && typeof parsed === "object") {
+        const found = findShopProduct(
+          parsed as Record<string, unknown>,
+          productId,
+        );
+        if (found) return found;
+        const lenient = findAnyProductLike(
+          parsed as Record<string, unknown>,
+        );
+        if (lenient) return lenient;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return null;
+}
+
 function findAnyProductLike(
   node: unknown,
   depth = 0,
@@ -388,7 +449,6 @@ function findAnyProductLike(
   const hasDescription =
     typeof o.description === "string" ||
     typeof o.productDescription === "string";
-  // 商品っぽい: name + price + description のうち 2 つ以上
   let score = 0;
   if (hasName) score++;
   if (hasPrice) score++;
@@ -401,7 +461,6 @@ function findAnyProductLike(
   return null;
 }
 
-// JSON-LD (Schema.org Product) スクリプトから商品情報を抽出
 function extractJsonLdProduct(html: string): Record<string, unknown> | null {
   const matches = html.matchAll(
     /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g,
@@ -430,7 +489,6 @@ function extractJsonLdProduct(html: string): Record<string, unknown> | null {
   return null;
 }
 
-// OG タグ + JSON-LD から最低限の情報で MercariItemDetail を組み立てる
 function mapFromOgAndJsonLd(
   id: string,
   ogTitle: string | undefined,
@@ -438,16 +496,13 @@ function mapFromOgAndJsonLd(
   ogImage: string | undefined,
   jsonLd: Record<string, unknown> | null,
 ): MercariItemDetail {
-  // タイトル
   const title =
     ogTitle ??
     (typeof jsonLd?.name === "string" ? (jsonLd.name as string) : undefined);
-  // 説明
   const description =
     (typeof jsonLd?.description === "string"
       ? (jsonLd.description as string)
       : undefined) ?? ogDescription;
-  // 価格 (offers.price)
   let price: number | undefined;
   const offers = jsonLd?.offers as Record<string, unknown> | undefined;
   if (offers) {
@@ -458,7 +513,6 @@ function mapFromOgAndJsonLd(
       if (Number.isFinite(n)) price = n;
     }
   }
-  // 画像 (image / images / image_url)
   const images: string[] = [];
   const ldImage = jsonLd?.image;
   if (Array.isArray(ldImage)) {
@@ -470,7 +524,6 @@ function mapFromOgAndJsonLd(
   }
   if (images.length === 0 && ogImage) images.push(ogImage);
 
-  // ショップ情報 (brand / offers.seller)
   const seller = (jsonLd?.brand ??
     (offers?.seller as Record<string, unknown> | undefined)) as
     | Record<string, unknown>
@@ -484,11 +537,9 @@ function mapFromOgAndJsonLd(
     images: images.length > 0 ? images : undefined,
     price,
     sellerName,
-    // タイトルを直接 detail にはセットせず、log のみ
   };
 }
 
-// __NEXT_DATA__ から id 一致 or 商品ノードらしき object を再帰探索
 function findShopProduct(
   node: unknown,
   targetId: string,
@@ -504,7 +555,6 @@ function findShopProduct(
     return null;
   }
   const o = node as Record<string, unknown>;
-  // id 一致 + name/price あれば確定
   const idMatch =
     o.id === targetId || o.productId === targetId || o.product_id === targetId;
   const hasFields =
@@ -519,7 +569,6 @@ function findShopProduct(
 
 function extractShopImages(o: Record<string, unknown>): string[] {
   const out: string[] = [];
-  // 検索結果と同じ photos / thumbnails 形式
   const photos = o.photos;
   if (Array.isArray(photos)) {
     for (const p of photos) {
@@ -538,7 +587,6 @@ function extractShopImages(o: Record<string, unknown>): string[] {
     }
   }
   if (out.length === 0) {
-    // productImage[] / images[] 等のフォールバック
     const arr =
       (Array.isArray(o.productImage) && o.productImage) ||
       (Array.isArray(o.images) && o.images) ||
@@ -611,15 +659,12 @@ function formatSellerRating(
   ratings: number | undefined,
 ): string {
   if (typeof score === "number" && typeof ratings === "number") {
-    // メルカリの評価は 0.0 〜 5.0 表示が多い
     return `★ ${score.toFixed(1)} (${ratings}件)`;
   }
   if (typeof ratings === "number") return `${ratings}件の評価`;
   if (typeof score === "number") return `★ ${score.toFixed(1)}`;
   return "";
 }
-
-// ---- レスポンス型 ----
 
 type MercariPhoto = string | { url?: string };
 
