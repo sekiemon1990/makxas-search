@@ -378,6 +378,11 @@ function parseRSCForProduct(
       String.fromCharCode(parseInt(c, 16)),
     );
 
+  // 全エントリから候補を集めて、最もリッチなものを採用する
+  // (最初に見つかった score>=2 を返すと metadata オブジェクト
+  // {title, description} を誤って採用してしまうため)
+  const candidates: Record<string, unknown>[] = [];
+
   const lines = combined.split("\n");
   for (const line of lines) {
     const colonIdx = line.indexOf(":");
@@ -391,10 +396,9 @@ function parseRSCForProduct(
     ) {
       try {
         const parsed = JSON.parse(data);
-        const found = findShopProduct(parsed, productId);
-        if (found) return found;
-        const lenient = findAnyProductLike(parsed);
-        if (lenient) return lenient;
+        const exact = findShopProduct(parsed, productId);
+        if (exact) return exact;
+        collectProductCandidates(parsed, candidates);
       } catch {
         // truncated chunk boundary - try next
       }
@@ -409,22 +413,82 @@ function parseRSCForProduct(
     try {
       const parsed = JSON.parse(m[0]);
       if (parsed && typeof parsed === "object") {
-        const found = findShopProduct(
+        const exact = findShopProduct(
           parsed as Record<string, unknown>,
           productId,
         );
-        if (found) return found;
-        const lenient = findAnyProductLike(
-          parsed as Record<string, unknown>,
-        );
-        if (lenient) return lenient;
+        if (exact) return exact;
+        collectProductCandidates(parsed, candidates);
       }
     } catch {
       // ignore
     }
   }
 
-  return null;
+  if (candidates.length === 0) return null;
+
+  // 最もリッチな候補 (score 最大) を採用
+  let best: Record<string, unknown> | null = null;
+  let bestScore = -1;
+  for (const c of candidates) {
+    const s = scoreProductLikeness(c);
+    if (s > bestScore) {
+      bestScore = s;
+      best = c;
+    }
+  }
+
+  if (best) {
+    log.warn("shop product (RSC) candidates:", {
+      total: candidates.length,
+      bestScore,
+      bestKeys: Object.keys(best).slice(0, 30).join(","),
+    });
+  }
+
+  return best;
+}
+
+// 商品らしさをスコアリング (price + shop 系を強く評価)
+function scoreProductLikeness(o: Record<string, unknown>): number {
+  let score = 0;
+  // 強いシグナル (商品にしか普通存在しない)
+  if (typeof o.price === "number" || typeof o.price === "string") score += 3;
+  if (typeof o.shopId === "string" || typeof o.shop_id === "string") score += 3;
+  if (typeof o.shopName === "string") score += 2;
+  if (o.shop && typeof o.shop === "object") score += 2;
+  if (o.shippingPayer && typeof o.shippingPayer === "object") score += 2;
+  if (o.shipping_payer && typeof o.shipping_payer === "object") score += 2;
+  if (Array.isArray(o.productImage) && o.productImage.length > 0) score += 2;
+  if (Array.isArray(o.thumbnails) && o.thumbnails.length > 0) score += 2;
+  if (Array.isArray(o.images) && o.images.length > 0) score += 2;
+  if (Array.isArray(o.photos) && o.photos.length > 0) score += 2;
+  if (typeof o.itemConditionId === "number") score += 2;
+  if (o.itemCondition && typeof o.itemCondition === "object") score += 2;
+  // 弱いシグナル (metadata と被りうる)
+  if (typeof o.name === "string") score += 1;
+  if (typeof o.productName === "string") score += 2;
+  if (typeof o.description === "string") score += 1;
+  if (typeof o.productDescription === "string") score += 2;
+  if (typeof o.title === "string") score += 1;
+  return score;
+}
+
+// score >= 2 のノードを再帰的に集める
+function collectProductCandidates(
+  node: unknown,
+  out: Record<string, unknown>[],
+  depth = 0,
+): void {
+  if (depth > 16) return;
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const c of node) collectProductCandidates(c, out, depth + 1);
+    return;
+  }
+  const o = node as Record<string, unknown>;
+  if (scoreProductLikeness(o) >= 2) out.push(o);
+  for (const v of Object.values(o)) collectProductCandidates(v, out, depth + 1);
 }
 
 function findAnyProductLike(
