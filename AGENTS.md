@@ -40,8 +40,8 @@ A = git・短時間 / B = dev server / C = log 監視 / D = スクラッチ
 - Supabase Free tier: $0/月 (現時点)、Pro 移行時 $25/月
 
 ### 従量課金
-- Anthropic Claude API (Opus 4.7): $15/1M input tokens、$75/1M output tokens
-- Anthropic Claude API (Haiku 4.5): $0.80/1M input tokens、$4/1M output tokens
+- Anthropic Claude API (Opus 4.7): $5/1M input tokens、$25/1M output tokens
+- Anthropic Claude API (Haiku 4.5): $1/1M input tokens、$5/1M output tokens
 - Supabase: 超過時 → DB $0.125/GB/月、Auth $0.00325/MAU (1,000 MAU 無料枠超過後)
 
 ### 無料枠と上限
