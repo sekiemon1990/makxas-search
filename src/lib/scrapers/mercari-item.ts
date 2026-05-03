@@ -277,12 +277,13 @@ async function scrapeMercariShopProduct(
 
   const images = extractShopImages(product);
 
-  const description =
-    pickStr(product, "description") ||
+  // 商品説明: 本物の説明文より長い OG 説明があればそちらを優先
+  // (RSC 内の "description" は Shops 共通の注意書きを掴むことが多い)
+  const productDescRaw =
     pickStr(product, "productDescription") ||
     pickStr(product, "detailDescription") ||
-    ogDescription ||
-    undefined;
+    pickStr(product, "description");
+  const description = chooseLongerNonEmpty(productDescRaw, ogDescription);
 
   const conditionId =
     pickNum(product, "itemConditionId") ??
@@ -301,10 +302,15 @@ async function scrapeMercariShopProduct(
   const price = pickNum(product, "price") ?? undefined;
 
   const shop = pickObj(product, "shop") ?? pickObj(product, "store");
+  // og:title は "<商品名> - <ショップ名> メルカリShops" 形式
+  const shopFromOgTitle = ogTitle
+    ? ogTitle.match(/-\s*([^-]+?)\s+メルカリ\s*S/)?.[1]?.trim()
+    : undefined;
   const sellerName =
     pickStr(product, "shopName") ||
     pickStr(shop, "name") ||
     pickStr(shop, "shopName") ||
+    shopFromOgTitle ||
     undefined;
   const shopId = pickStr(product, "shopId") || pickStr(shop, "id") || "";
   const sellerUrl = shopId
@@ -333,10 +339,14 @@ async function scrapeMercariShopProduct(
     pickStr(pickObj(product, "shippingFromArea"), "name") ||
     pickStr(pickObj(product, "shipping_from_area"), "name");
 
+  // 画像が空なら og:image を最低 1 枚として補完
+  const finalImages =
+    images.length > 0 ? images : ogImage ? [ogImage] : undefined;
+
   const result: MercariItemDetail = {
     id,
     description,
-    images: images.length > 0 ? images : undefined,
+    images: finalImages,
     price,
     condition,
     shipping,
@@ -444,6 +454,39 @@ function parseRSCForProduct(
       bestScore,
       bestKeys: Object.keys(best).slice(0, 30).join(","),
     });
+  }
+
+  // 診断: 本物の商品オブジェクトが収集されてない疑いがあれば
+  // (= bestScore が低い)、候補の形状分布を出力する
+  if (bestScore < 6) {
+    const sigCount = new Map<string, number>();
+    for (const c of candidates) {
+      const sig = Object.keys(c).slice(0, 8).sort().join(",");
+      sigCount.set(sig, (sigCount.get(sig) ?? 0) + 1);
+    }
+    const top = Array.from(sigCount.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([sig, n]) => `${n}× [${sig}]`);
+    log.warn("shop RSC candidate shapes top10:", top);
+
+    const features = {
+      withPrice: 0,
+      withPriceAmount: 0,
+      withShopName: 0,
+      withShopId: 0,
+      withProductImage: 0,
+    };
+    for (const c of candidates) {
+      const k = Object.keys(c);
+      if (k.includes("price")) features.withPrice++;
+      if (k.includes("priceAmount") || k.includes("price_amount"))
+        features.withPriceAmount++;
+      if (k.includes("shopName")) features.withShopName++;
+      if (k.includes("shopId") || k.includes("shop_id")) features.withShopId++;
+      if (k.includes("productImage")) features.withProductImage++;
+    }
+    log.warn("shop RSC candidate features:", features);
   }
 
   return best;
@@ -668,6 +711,16 @@ function extractShopImages(o: Record<string, unknown>): string[] {
     }
   }
   return out;
+}
+
+function chooseLongerNonEmpty(
+  a: string | undefined,
+  b: string | undefined,
+): string | undefined {
+  const aTrim = a?.trim() ?? "";
+  const bTrim = b?.trim() ?? "";
+  if (aTrim && bTrim) return aTrim.length >= bTrim.length ? aTrim : bTrim;
+  return aTrim || bTrim || undefined;
 }
 
 function pickStr(
