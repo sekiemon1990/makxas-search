@@ -204,6 +204,37 @@ async function scrapeMercariShopProduct(
     log.warn("shop JSON-LD: not found or no Product type");
   }
 
+  // 診断: ショップ系の URL / ID / 評価らしき文字列が HTML に含まれてるか確認
+  const shopUrlMatches = Array.from(
+    html.matchAll(/\/shop\/([a-zA-Z0-9_-]{2,40})/g),
+    (m) => m[1],
+  );
+  const uniqueShopIds = Array.from(new Set(shopUrlMatches));
+  // ナニワグループ等の漢字/カナ混じりの店名で /shop/<日本語> 形式もあるので別途
+  const shopUrlEncodedMatches = Array.from(
+    html.matchAll(/\/shop\/([^"'\s<>]{2,80})/g),
+    (m) => m[1],
+  );
+  const uniqueShopUrlsAll = Array.from(new Set(shopUrlEncodedMatches));
+  // 評価らしきパターン: 星評価 / 件数
+  const ratingMatches = html.match(/[★☆][\s]*\d\.\d+/g) ?? [];
+  const reviewCountMatches = html.match(/\(\d{1,5}\s*件\)/g) ?? [];
+  const shopKeyHits = {
+    shopId_count: (html.match(/\\?"shopId\\?"/g) ?? []).length,
+    shopName_count: (html.match(/\\?"shopName\\?"/g) ?? []).length,
+    shop_id_count: (html.match(/\\?"shop_id\\?"/g) ?? []).length,
+    rating_count: (html.match(/\\?"rating\\?"/g) ?? []).length,
+    score_count: (html.match(/\\?"score\\?"/g) ?? []).length,
+    reviewCount_count: (html.match(/\\?"reviewCount\\?"/g) ?? []).length,
+  };
+  log.warn("shop URL/ID probe:", {
+    shopIdCandidates: uniqueShopIds.slice(0, 10),
+    shopUrlSamples: uniqueShopUrlsAll.slice(0, 10),
+    ratingSamples: ratingMatches.slice(0, 5),
+    reviewCountSamples: reviewCountMatches.slice(0, 5),
+    keyHits: shopKeyHits,
+  });
+
   if (html.includes("self.__next_f")) {
     const rscMatches = Array.from(
       html.matchAll(/self\.__next_f\.push\(\[1,\s*"((?:[^"\\]|\\.)*)"\]\)/g),
