@@ -68,10 +68,8 @@ function fmtDate(iso: string) {
   });
 }
 
-function buildFixPrompt(
-  s: SearchRow,
-  userEmail: string,
-): string {
+/** エンジニア向け修正依頼プロンプト */
+function buildFixPrompt(s: SearchRow, userEmail: string): string {
   const sourceNames = s.sources.map((src) => SOURCE_LABEL[src] ?? src).join("、");
   const scraperFiles = s.sources
     .flatMap((src) => SOURCE_SCRAPER[src] ?? [])
@@ -82,7 +80,7 @@ function buildFixPrompt(
 
 ## エラー情報
 - 発生日時: ${new Date(s.searched_at).toLocaleString("ja-JP")}
-- ユーザー: ${userEmail}
+- 担当ユーザー: ${userEmail}
 - キーワード: ${s.keyword}
 - 媒体: ${sourceNames}
 - 検索ID: ${s.id}
@@ -90,12 +88,52 @@ function buildFixPrompt(
 ## 調査対象ファイル
 ${fileList || "- src/lib/scrapers/ 配下"}
 
-## 調査・修正依頼
+## 修正依頼
 1. 上記スクレイパーでエラーが発生した原因を特定する（HTML構造の変化・レート制限・ネットワーク障害等）
 2. 必要な修正を実施する
 3. 同様エラーが再発しないよう、エラーハンドリングを改善する
 
 参考: src/lib/logger.ts でエラーログを確認できます。`;
+}
+
+/** ユーザーへのヒアリング事項プロンプト */
+function buildHearingPrompt(s: SearchRow, userEmail: string): string {
+  const sourceNames = s.sources.map((src) => SOURCE_LABEL[src] ?? src).join("、");
+  const isAnonymous = !userEmail || userEmail.includes("（不明）");
+  const contactInfo = isAnonymous
+    ? "※ ユーザーが特定できていません。ログから特定後に連絡してください。"
+    : `連絡先: ${userEmail}`;
+
+  return `【エラー発生ユーザーへのヒアリング】
+
+${contactInfo}
+
+## エラー概要（確認用）
+- 発生日時: ${new Date(s.searched_at).toLocaleString("ja-JP")}
+- 検索キーワード: ${s.keyword}
+- 選択した媒体: ${sourceNames}
+
+## ヒアリング事項
+
+お手数ですが、以下の内容をご確認いただけますか？
+
+1. エラーが発生した時の状況を詳しく教えてください
+   （例: 「検索ボタンを押したら画面が止まった」「エラーメッセージが出た」など）
+
+2. 画面にエラーメッセージは表示されましたか？表示された場合、何と書いてありましたか？
+   （スクリーンショットがあれば共有いただけると助かります）
+
+3. 検索結果は一部でも表示されましたか？それとも全く表示されませんでしたか？
+
+4. 同じキーワード・同じ媒体で再度試しましたか？その結果はどうでしたか？
+
+5. このようなエラーは今回が初めてですか？以前にも経験したことがありますか？
+   （ある場合：いつ頃から発生しているか教えてください）
+
+6. エラーが起きる直前に何か特別な操作はありましたか？
+   （例: 初めて選んだ媒体、今まで使ったことのない検索条件、など）
+
+ご協力をよろしくお願いします。`;
 }
 
 // ──────────────────────────────────────────────
@@ -505,7 +543,8 @@ export default async function AdminDashboardPage() {
               <div>
                 <h2 className="text-[13px] font-bold text-danger">エラーログ</h2>
                 <p className="text-xs text-muted mt-0.5">
-                  直近 30 日 / {recentErrors.length} 件 — 各行の「プロンプトをコピー」を Claude Code に貼り付けて修正依頼できます
+                  直近 30 日 / {recentErrors.length} 件
+                  &nbsp;—&nbsp;「修正依頼」を Claude Code へ、「ヒアリング」を担当ユーザーへ送付できます
                 </p>
               </div>
             </div>
@@ -513,20 +552,24 @@ export default async function AdminDashboardPage() {
               <table className="w-full text-[13px] border-collapse">
                 <thead>
                   <tr>
-                    {["日時", "ユーザー", "キーワード", "媒体", "修正依頼"].map((h, i) => (
-                      <th
-                        key={h}
-                        className={`px-4 py-2.5 text-[11px] font-semibold text-muted uppercase tracking-wider bg-surface-2 border-b border-border whitespace-nowrap ${i >= 4 ? "text-right" : "text-left"}`}
-                      >
-                        {h}
-                      </th>
-                    ))}
+                    {["日時", "担当ユーザー", "キーワード", "媒体", "エンジニア修正依頼", "ユーザーヒアリング"].map(
+                      (h, i) => (
+                        <th
+                          key={h}
+                          className={`px-4 py-2.5 text-[11px] font-semibold text-muted uppercase tracking-wider bg-surface-2 border-b border-border whitespace-nowrap ${i >= 4 ? "text-right" : "text-left"}`}
+                        >
+                          {h}
+                        </th>
+                      ),
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   {recentErrors.map((s) => {
-                    const email = userEmailMap[s.user_id] ?? s.user_id;
-                    const prompt = buildFixPrompt(s, email);
+                    const email = userEmailMap[s.user_id] ?? "（ユーザー不明）";
+                    const isKnownUser = !!userEmailMap[s.user_id];
+                    const fixPrompt = buildFixPrompt(s, email);
+                    const hearingPrompt = buildHearingPrompt(s, email);
                     return (
                       <tr
                         key={s.id}
@@ -535,17 +578,32 @@ export default async function AdminDashboardPage() {
                         <td className="px-4 py-3 text-muted whitespace-nowrap">
                           {fmtDate(s.searched_at)}
                         </td>
-                        <td className="px-4 py-3 text-foreground max-w-[120px] truncate">
-                          {email.split("@")[0]}
+                        <td className="px-4 py-3 max-w-[160px]">
+                          {isKnownUser ? (
+                            <div>
+                              <div className="text-foreground font-medium truncate">
+                                {email.split("@")[0]}
+                              </div>
+                              <div className="text-muted text-[10px] truncate">{email}</div>
+                            </div>
+                          ) : (
+                            <span className="text-muted text-[11px]">不明</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 font-semibold text-foreground max-w-[180px] truncate">
                           {s.keyword}
                         </td>
-                        <td className="px-4 py-3 text-muted">
+                        <td className="px-4 py-3 text-muted whitespace-nowrap">
                           {s.sources.map((src) => SOURCE_LABEL[src] ?? src).join(" / ")}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <CopyPromptButton prompt={prompt} />
+                          <CopyPromptButton prompt={fixPrompt} label="修正依頼をコピー" />
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <CopyPromptButton
+                            prompt={hearingPrompt}
+                            label={isKnownUser ? "ヒアリングをコピー" : "ヒアリング（要特定）"}
+                          />
                         </td>
                       </tr>
                     );
