@@ -60,6 +60,13 @@ export const serverEnv = {
   get ADMIN_EMAILS(): string {
     return ensure("ADMIN_EMAILS", "server");
   },
+  /**
+   * コスト詳細閲覧権限を持つメールアドレスリスト（ADMIN_EMAILS の部分集合）。
+   * 未設定の場合はコスト詳細メニューを全員に非表示。
+   */
+  get COST_VIEWER_EMAILS(): string {
+    return process.env.COST_VIEWER_EMAILS ?? "";
+  },
 } as const;
 
 /**

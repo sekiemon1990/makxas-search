@@ -1,20 +1,9 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { AppShell } from "@/components/AppShell";
-import { BarChart3, Users, Zap, DollarSign, TrendingUp } from "lucide-react";
+import { CopyPromptButton } from "@/components/CopyPromptButton";
 
 // ──────────────────────────────────────────────
 // 型定義
 // ──────────────────────────────────────────────
-
-type UsageRow = {
-  endpoint: string;
-  model: string;
-  cost_usd: number;
-  created_at: string;
-  user_id: string | null;
-};
 
 type SearchRow = {
   id: string;
@@ -27,29 +16,19 @@ type SearchRow = {
   median: number | null;
 };
 
+type ViewRow = {
+  id: string;
+  user_id: string;
+  source: string;
+  title: string;
+  price: number;
+  from_keyword: string | null;
+  viewed_at: string;
+};
+
 // ──────────────────────────────────────────────
 // ヘルパー
 // ──────────────────────────────────────────────
-
-function formatUsd(v: number) {
-  return v < 0.01
-    ? `$${v.toFixed(5)}`
-    : `$${v.toFixed(4)}`;
-}
-
-function formatJpy(usd: number) {
-  const jpy = Math.round(usd * 155); // 概算レート
-  return `≈ ¥${jpy.toLocaleString("ja-JP")}`;
-}
-
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleString("ja-JP", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 const SOURCE_LABEL: Record<string, string> = {
   yahoo_auction: "ヤフオク",
@@ -57,11 +36,19 @@ const SOURCE_LABEL: Record<string, string> = {
   jimoty: "ジモティー",
 };
 
-const ENDPOINT_LABEL: Record<string, string> = {
-  "ai-advisor": "AI 査定",
-  "detect-accessories": "付属品検出",
-  "keyword-suggest": "キーワード候補",
-  "refine-keywords": "絞り込み提案",
+const SOURCE_SCRAPER: Record<string, string[]> = {
+  yahoo_auction: [
+    "src/app/api/scrape/yahoo/route.ts",
+    "src/lib/scrapers/yahoo.ts",
+  ],
+  mercari: [
+    "src/app/api/scrape/mercari/route.ts",
+    "src/lib/scrapers/mercari.ts",
+  ],
+  jimoty: [
+    "src/app/api/scrape/jimoty/route.ts",
+    "src/lib/scrapers/jimoty.ts",
+  ],
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -72,319 +59,643 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "中止",
 };
 
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleString("ja-JP", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function buildFixPrompt(
+  s: SearchRow,
+  userEmail: string,
+): string {
+  const sourceNames = s.sources.map((src) => SOURCE_LABEL[src] ?? src).join("、");
+  const scraperFiles = s.sources
+    .flatMap((src) => SOURCE_SCRAPER[src] ?? [])
+    .filter((v, i, a) => a.indexOf(v) === i);
+  const fileList = scraperFiles.map((f) => `- ${f}`).join("\n");
+
+  return `以下の検索でエラーが発生しています。原因を調査して修正してください。
+
+## エラー情報
+- 発生日時: ${new Date(s.searched_at).toLocaleString("ja-JP")}
+- ユーザー: ${userEmail}
+- キーワード: ${s.keyword}
+- 媒体: ${sourceNames}
+- 検索ID: ${s.id}
+
+## 調査対象ファイル
+${fileList || "- src/lib/scrapers/ 配下"}
+
+## 調査・修正依頼
+1. 上記スクレイパーでエラーが発生した原因を特定する（HTML構造の変化・レート制限・ネットワーク障害等）
+2. 必要な修正を実施する
+3. 同様エラーが再発しないよう、エラーハンドリングを改善する
+
+参考: src/lib/logger.ts でエラーログを確認できます。`;
+}
+
 // ──────────────────────────────────────────────
 // データ取得
 // ──────────────────────────────────────────────
 
-async function fetchAdminData() {
+async function fetchDashboardData() {
   const service = createServiceClient();
 
-  // 検索ログ（直近 200 件）
+  const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  // 検索ログ
   const { data: searches } = await service
     .from("searches")
     .select("id, user_id, keyword, sources, status, searched_at, total_count, median")
+    .gte("searched_at", since30d)
     .order("searched_at", { ascending: false })
-    .limit(200);
+    .limit(500);
 
-  // API 使用量ログ（直近 30 日）
-  const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: usageLogs } = await service
-    .from("api_usage_logs")
-    .select("endpoint, model, cost_usd, created_at, user_id")
-    .gte("created_at", since30d)
-    .order("created_at", { ascending: false });
+  // 詳細ページ閲覧ログ
+  const { data: views } = await service
+    .from("listing_views")
+    .select("id, user_id, source, title, price, from_keyword, viewed_at")
+    .gte("viewed_at", since30d)
+    .order("viewed_at", { ascending: false })
+    .limit(1000);
 
-  // ユーザーメールを取得（検索ログに登場する user_id 分のみ）
-  const userIdSet = new Set<string>();
-  (searches ?? []).forEach((s: SearchRow) => userIdSet.add(s.user_id));
-  (usageLogs ?? []).forEach((u: UsageRow) => u.user_id && userIdSet.add(u.user_id));
-
+  // ユーザーメールマップ
+  const {
+    data: { users },
+  } = await service.auth.admin.listUsers({ perPage: 1000 });
   const userEmailMap: Record<string, string> = {};
-  if (userIdSet.size > 0) {
-    const { data: { users } } = await service.auth.admin.listUsers({ perPage: 1000 });
-    users.forEach((u) => {
-      userEmailMap[u.id] = u.email ?? u.id.slice(0, 8);
-    });
-  }
+  users.forEach((u) => {
+    userEmailMap[u.id] = u.email ?? u.id.slice(0, 8);
+  });
 
   return {
     searches: (searches ?? []) as SearchRow[],
-    usageLogs: (usageLogs ?? []) as UsageRow[],
+    views: (views ?? []) as ViewRow[],
     userEmailMap,
   };
 }
 
 // ──────────────────────────────────────────────
-// コスト集計
+// 集計
 // ──────────────────────────────────────────────
 
-function aggregateCosts(logs: UsageRow[]) {
-  const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
-  const monthStr = now.toISOString().slice(0, 7);
+function aggregate(searches: SearchRow[], views: ViewRow[]) {
+  const today = new Date().toISOString().slice(0, 10);
+  const monthStr = new Date().toISOString().slice(0, 7);
 
-  let todayCost = 0;
-  let monthCost = 0;
-  let totalCost = 0;
+  const todaySearches = searches.filter((s) => s.searched_at.startsWith(today));
+  const monthSearches = searches.filter((s) => s.searched_at.startsWith(monthStr));
 
-  const byEndpoint: Record<string, number> = {};
-  const byModel: Record<string, number> = {};
-  const byUser: Record<string, number> = {};
+  // 検索集計
+  const todayTotal = todaySearches.length;
+  const todayErrors = todaySearches.filter((s) => s.status === "error").length;
+  const todayErrorRate =
+    todayTotal > 0 ? ((todayErrors / todayTotal) * 100).toFixed(1) : "0.0";
+  const monthTotal = monthSearches.length;
+  const activeUsers = new Set(monthSearches.map((s) => s.user_id)).size;
 
-  // 日次コスト（過去 30 日）
-  const dailyCost: Record<string, number> = {};
+  const userCounts: Record<string, number> = {};
+  todaySearches.forEach((s) => {
+    userCounts[s.user_id] = (userCounts[s.user_id] ?? 0) + 1;
+  });
+  const topEntry = Object.entries(userCounts).sort(([, a], [, b]) => b - a)[0];
 
-  for (const log of logs) {
-    const cost = Number(log.cost_usd);
-    const day = log.created_at.slice(0, 10);
+  // 直近14日の日次件数（検索）
+  const last14Days = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date(Date.now() - (13 - i) * 24 * 60 * 60 * 1000);
+    return d.toISOString().slice(0, 10);
+  });
+  const dailyCounts: Record<string, number> = {};
+  searches.forEach((s) => {
+    const day = s.searched_at.slice(0, 10);
+    dailyCounts[day] = (dailyCounts[day] ?? 0) + 1;
+  });
+  const maxDailyCount = Math.max(...last14Days.map((d) => dailyCounts[d] ?? 0), 1);
 
-    totalCost += cost;
-    if (day === todayStr) todayCost += cost;
-    if (log.created_at.slice(0, 7) === monthStr) monthCost += cost;
+  // 媒体別（今月）
+  const sourceCounts: Record<string, number> = {};
+  monthSearches.forEach((s) => {
+    s.sources.forEach((src) => {
+      sourceCounts[src] = (sourceCounts[src] ?? 0) + 1;
+    });
+  });
+  const totalSources = Object.values(sourceCounts).reduce((a, b) => a + b, 0);
 
-    byEndpoint[log.endpoint] = (byEndpoint[log.endpoint] ?? 0) + cost;
-    byModel[log.model] = (byModel[log.model] ?? 0) + cost;
-    if (log.user_id) {
-      byUser[log.user_id] = (byUser[log.user_id] ?? 0) + cost;
-    }
-    dailyCost[day] = (dailyCost[day] ?? 0) + cost;
-  }
+  // ── 詳細ページ閲覧集計 ──
+  const todayViews = views.filter((v) => v.viewed_at.startsWith(today));
+  const monthViews = views.filter((v) => v.viewed_at.startsWith(monthStr));
 
-  return { todayCost, monthCost, totalCost, byEndpoint, byModel, byUser, dailyCost };
+  const viewSourceCounts: Record<string, number> = {};
+  monthViews.forEach((v) => {
+    viewSourceCounts[v.source] = (viewSourceCounts[v.source] ?? 0) + 1;
+  });
+  const totalViewSources = Object.values(viewSourceCounts).reduce((a, b) => a + b, 0);
+
+  // 直近14日の日次閲覧件数
+  const dailyViewCounts: Record<string, number> = {};
+  views.forEach((v) => {
+    const day = v.viewed_at.slice(0, 10);
+    dailyViewCounts[day] = (dailyViewCounts[day] ?? 0) + 1;
+  });
+  const maxDailyViewCount = Math.max(
+    ...last14Days.map((d) => dailyViewCounts[d] ?? 0),
+    1,
+  );
+
+  return {
+    todayTotal,
+    todayErrorRate,
+    todayErrors,
+    monthTotal,
+    activeUsers,
+    topEntry,
+    last14Days,
+    dailyCounts,
+    maxDailyCount,
+    sourceCounts,
+    totalSources,
+    // views
+    todayViewCount: todayViews.length,
+    monthViewCount: monthViews.length,
+    viewSourceCounts,
+    totalViewSources,
+    dailyViewCounts,
+    maxDailyViewCount,
+  };
 }
 
 // ──────────────────────────────────────────────
 // ページ
 // ──────────────────────────────────────────────
 
-export default async function AdminPage() {
-  // 認証確認（middleware でも弾くが Server Component でも二重チェック）
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+export default async function AdminDashboardPage() {
+  const { searches, views, userEmailMap } = await fetchDashboardData();
+  const agg = aggregate(searches, views);
+  const recent200 = searches.slice(0, 200);
 
-  const adminEmails = (process.env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((e) => e.trim())
-    .filter(Boolean);
-  if (!adminEmails.includes(user.email ?? "")) redirect("/search");
+  // エラー一覧（直近30件）
+  const recentErrors = searches.filter((s) => s.status === "error").slice(0, 30);
 
-  const { searches, usageLogs, userEmailMap } = await fetchAdminData();
-  const costs = aggregateCosts(usageLogs);
+  // 最近の閲覧ログ（直近100件）
+  const recentViews = views.slice(0, 100);
 
-  // 直近 14 日の日次コスト
-  const last14Days = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date(Date.now() - (13 - i) * 24 * 60 * 60 * 1000);
-    return d.toISOString().slice(0, 10);
+  const now = new Date().toLocaleString("ja-JP", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
   });
-  const maxDailyCost = Math.max(...last14Days.map((d) => costs.dailyCost[d] ?? 0), 0.0001);
 
   return (
-    <AppShell title="管理画面" back={{ href: "/search", label: "戻る" }}>
-      <div className="flex flex-col gap-6 pb-8">
+    <>
+      {/* トップバー */}
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-surface px-8 h-14 shrink-0">
+        <h1 className="text-[16px] font-bold">ダッシュボード</h1>
+        <span className="text-xs text-muted">{now} 現在</span>
+      </div>
 
-        {/* ── コストサマリー ── */}
-        <section>
-          <h2 className="text-base font-bold text-foreground mb-3 flex items-center gap-2">
-            <DollarSign size={16} className="text-primary" />
-            Anthropic API コスト（直近 30 日）
-          </h2>
-          <div className="grid grid-cols-3 gap-3">
+      <div className="p-8 flex flex-col gap-6 max-w-[1200px]">
+
+        {/* ── 検索サマリーカード ── */}
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-wider text-muted mb-3">
+            検索アクティビティ
+          </div>
+          <div className="grid grid-cols-4 gap-4">
             {[
-              { label: "今日", cost: costs.todayCost },
-              { label: "今月", cost: costs.monthCost },
-              { label: "直近 30 日", cost: costs.totalCost },
-            ].map(({ label, cost }) => (
+              {
+                label: "今日の検索回数",
+                value: agg.todayTotal.toLocaleString("ja-JP"),
+                sub: `アクティブユーザー ${new Set(searches.filter((s) => s.searched_at.startsWith(new Date().toISOString().slice(0, 10))).map((s) => s.user_id)).size}名`,
+              },
+              {
+                label: "今月の検索回数",
+                value: agg.monthTotal.toLocaleString("ja-JP"),
+                sub: `ユーザー ${agg.activeUsers}名`,
+              },
+              {
+                label: "今日のエラー率",
+                value: `${agg.todayErrorRate}%`,
+                sub:
+                  agg.todayTotal > 0
+                    ? `${Math.round((Number(agg.todayErrorRate) * agg.todayTotal) / 100)}件 / ${agg.todayTotal}件`
+                    : "検索なし",
+                warn: Number(agg.todayErrorRate) >= 10,
+              },
+              {
+                label: "今日の最多利用",
+                value: agg.topEntry
+                  ? (userEmailMap[agg.topEntry[0]] ?? agg.topEntry[0]).split("@")[0]
+                  : "—",
+                sub: agg.topEntry ? `${agg.topEntry[1]} 件` : "",
+                small: true,
+              },
+            ].map(({ label, value, sub, warn, small }) => (
               <div
                 key={label}
-                className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-1"
+                className="bg-surface border border-border rounded-xl px-6 py-5"
               >
-                <span className="text-xs text-muted">{label}</span>
-                <span className="text-lg font-bold text-foreground">
-                  {formatUsd(cost)}
-                </span>
-                <span className="text-xs text-muted">{formatJpy(cost)}</span>
+                <div className="text-xs text-muted mb-1.5">{label}</div>
+                <div
+                  className={`font-bold leading-none ${small ? "text-xl mt-1" : "text-3xl"} ${warn ? "text-danger" : "text-foreground"}`}
+                >
+                  {value}
+                </div>
+                {sub && <div className="text-xs text-muted mt-1.5">{sub}</div>}
               </div>
             ))}
           </div>
-        </section>
-
-        {/* ── 日次コストグラフ（テキストバー）── */}
-        <section className="bg-surface border border-border rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-            <TrendingUp size={14} className="text-primary" />
-            日次コスト（直近 14 日）
-          </h3>
-          <div className="flex items-end gap-1 h-20">
-            {last14Days.map((day) => {
-              const cost = costs.dailyCost[day] ?? 0;
-              const pct = (cost / maxDailyCost) * 100;
-              return (
-                <div key={day} className="flex flex-col items-center gap-1 flex-1">
-                  <div
-                    className="w-full bg-primary/70 rounded-sm min-h-[2px]"
-                    style={{ height: `${Math.max(pct, 2)}%` }}
-                    title={`${day}: ${formatUsd(cost)}`}
-                  />
-                  <span className="text-[9px] text-muted rotate-[-45deg] origin-top-right whitespace-nowrap">
-                    {day.slice(5)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* ── エンドポイント別・モデル別 内訳 ── */}
-        <div className="grid grid-cols-2 gap-4">
-          {/* エンドポイント別 */}
-          <section className="bg-surface border border-border rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-              <Zap size={14} className="text-primary" />
-              エンドポイント別
-            </h3>
-            {Object.keys(ENDPOINT_LABEL).length === 0 ||
-            Object.keys(costs.byEndpoint).length === 0 ? (
-              <p className="text-xs text-muted">データなし</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {Object.entries(costs.byEndpoint)
-                  .sort(([, a], [, b]) => b - a)
-                  .map(([ep, cost]) => (
-                    <div key={ep} className="flex justify-between text-xs">
-                      <span className="text-foreground">
-                        {ENDPOINT_LABEL[ep] ?? ep}
-                      </span>
-                      <span className="text-muted font-mono">{formatUsd(cost)}</span>
-                    </div>
-                  ))}
-              </div>
-            )}
-          </section>
-
-          {/* モデル別 */}
-          <section className="bg-surface border border-border rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-              <BarChart3 size={14} className="text-primary" />
-              モデル別
-            </h3>
-            {Object.keys(costs.byModel).length === 0 ? (
-              <p className="text-xs text-muted">データなし</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {Object.entries(costs.byModel)
-                  .sort(([, a], [, b]) => b - a)
-                  .map(([model, cost]) => (
-                    <div key={model} className="flex justify-between text-xs">
-                      <span className="text-foreground truncate max-w-[120px]">
-                        {model.replace("claude-", "")}
-                      </span>
-                      <span className="text-muted font-mono">{formatUsd(cost)}</span>
-                    </div>
-                  ))}
-              </div>
-            )}
-          </section>
         </div>
 
-        {/* ── ユーザー別コスト ── */}
-        {Object.keys(costs.byUser).length > 0 && (
-          <section className="bg-surface border border-border rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-              <Users size={14} className="text-primary" />
-              ユーザー別コスト（上位 10 名）
-            </h3>
-            <div className="flex flex-col gap-2">
-              {Object.entries(costs.byUser)
-                .sort(([, a], [, b]) => b - a)
-                .slice(0, 10)
-                .map(([uid, cost]) => (
-                  <div key={uid} className="flex justify-between text-xs">
-                    <span className="text-foreground truncate max-w-[220px]">
-                      {userEmailMap[uid] ?? uid.slice(0, 8) + "..."}
-                    </span>
-                    <span className="text-muted font-mono">{formatUsd(cost)}</span>
-                  </div>
-                ))}
+        {/* ── 詳細ページ閲覧サマリーカード ── */}
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-wider text-muted mb-3">
+            詳細ページ閲覧（listing_views）
+          </div>
+          <div className="grid grid-cols-4 gap-4">
+            <div className="bg-surface border border-border rounded-xl px-6 py-5">
+              <div className="text-xs text-muted mb-1.5">今日の閲覧数</div>
+              <div className="text-3xl font-bold text-foreground leading-none">
+                {agg.todayViewCount.toLocaleString("ja-JP")}
+              </div>
             </div>
-          </section>
-        )}
+            <div className="bg-surface border border-border rounded-xl px-6 py-5">
+              <div className="text-xs text-muted mb-1.5">今月の閲覧数</div>
+              <div className="text-3xl font-bold text-foreground leading-none">
+                {agg.monthViewCount.toLocaleString("ja-JP")}
+              </div>
+            </div>
+            {Object.entries(agg.viewSourceCounts)
+              .sort(([, a], [, b]) => b - a)
+              .slice(0, 2)
+              .map(([src, count]) => (
+                <div key={src} className="bg-surface border border-border rounded-xl px-6 py-5">
+                  <div className="text-xs text-muted mb-1.5">
+                    {SOURCE_LABEL[src] ?? src}（今月）
+                  </div>
+                  <div className="text-3xl font-bold text-foreground leading-none">
+                    {count.toLocaleString("ja-JP")}
+                  </div>
+                  <div className="text-xs text-muted mt-1.5">
+                    {agg.totalViewSources > 0
+                      ? Math.round((count / agg.totalViewSources) * 100)
+                      : 0}
+                    %
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
 
-        {/* ── 検索アクティビティ ── */}
-        <section>
-          <h2 className="text-base font-bold text-foreground mb-3 flex items-center gap-2">
-            <Users size={16} className="text-primary" />
-            検索アクティビティ（直近 200 件）
-          </h2>
-          {searches.length === 0 ? (
-            <p className="text-sm text-muted">データなし</p>
-          ) : (
-            <div className="overflow-x-auto -mx-4 px-4">
-              <table className="w-full text-xs border-separate border-spacing-0 min-w-[600px]">
+        {/* ── チャート行 ── */}
+        <div className="grid grid-cols-2 gap-5">
+          {/* 日次検索件数 */}
+          <div className="bg-surface border border-border rounded-xl p-5">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-muted mb-4">
+              日次検索回数（直近 14 日）
+            </div>
+            <div className="flex items-end gap-1.5 h-24">
+              {agg.last14Days.map((day) => {
+                const count = agg.dailyCounts[day] ?? 0;
+                const pxH = Math.max(Math.round((count / agg.maxDailyCount) * 96), 2);
+                return (
+                  <div
+                    key={day}
+                    className="flex flex-col items-center justify-end flex-1 h-full"
+                  >
+                    <div
+                      className="w-full bg-primary/60 rounded-t-sm"
+                      style={{ height: `${pxH}px` }}
+                      title={`${day}: ${count}件`}
+                    />
+                    <span className="text-[9px] text-muted mt-1.5 whitespace-nowrap">
+                      {day.slice(5)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 日次閲覧件数 */}
+          <div className="bg-surface border border-border rounded-xl p-5">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-muted mb-4">
+              詳細ページ閲覧（直近 14 日）
+            </div>
+            <div className="flex items-end gap-1.5 h-24">
+              {agg.last14Days.map((day) => {
+                const count = agg.dailyViewCounts[day] ?? 0;
+                const pxH = Math.max(
+                  Math.round((count / agg.maxDailyViewCount) * 96),
+                  2,
+                );
+                return (
+                  <div
+                    key={day}
+                    className="flex flex-col items-center justify-end flex-1 h-full"
+                  >
+                    <div
+                      className="w-full bg-info/50 rounded-t-sm"
+                      style={{ height: `${pxH}px` }}
+                      title={`${day}: ${count}件`}
+                    />
+                    <span className="text-[9px] text-muted mt-1.5 whitespace-nowrap">
+                      {day.slice(5)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* ── 媒体別 ── */}
+        <div className="grid grid-cols-2 gap-5">
+          {/* 検索媒体別 */}
+          <div className="bg-surface border border-border rounded-xl p-5">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-muted mb-4">
+              検索媒体別（今月）
+            </div>
+            {agg.totalSources === 0 ? (
+              <p className="text-sm text-muted">データなし</p>
+            ) : (
+              <div className="flex flex-col gap-0">
+                {Object.entries(agg.sourceCounts)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([src, count]) => {
+                    const pct =
+                      agg.totalSources > 0
+                        ? Math.round((count / agg.totalSources) * 100)
+                        : 0;
+                    return (
+                      <div
+                        key={src}
+                        className="flex items-center py-2.5 border-b border-border last:border-0 text-sm"
+                      >
+                        <span className="w-28 shrink-0 text-foreground">
+                          {SOURCE_LABEL[src] ?? src}
+                        </span>
+                        <div className="flex-1 mx-4 h-1.5 bg-border rounded-full">
+                          <div
+                            className="h-full bg-primary/50 rounded-full"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="font-semibold text-foreground w-10 text-right">
+                          {count}
+                        </span>
+                        <span className="text-muted text-xs w-10 text-right">{pct}%</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+
+          {/* 閲覧媒体別 */}
+          <div className="bg-surface border border-border rounded-xl p-5">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-muted mb-4">
+              詳細ページ閲覧媒体別（今月）
+            </div>
+            {agg.totalViewSources === 0 ? (
+              <p className="text-sm text-muted">データなし</p>
+            ) : (
+              <div className="flex flex-col gap-0">
+                {Object.entries(agg.viewSourceCounts)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([src, count]) => {
+                    const pct =
+                      agg.totalViewSources > 0
+                        ? Math.round((count / agg.totalViewSources) * 100)
+                        : 0;
+                    return (
+                      <div
+                        key={src}
+                        className="flex items-center py-2.5 border-b border-border last:border-0 text-sm"
+                      >
+                        <span className="w-28 shrink-0 text-foreground">
+                          {SOURCE_LABEL[src] ?? src}
+                        </span>
+                        <div className="flex-1 mx-4 h-1.5 bg-border rounded-full">
+                          <div
+                            className="h-full bg-info/50 rounded-full"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="font-semibold text-foreground w-10 text-right">
+                          {count}
+                        </span>
+                        <span className="text-muted text-xs w-10 text-right">{pct}%</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── エラーログ ── */}
+        {recentErrors.length > 0 && (
+          <div className="bg-surface border border-danger/30 rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-danger/5">
+              <div>
+                <h2 className="text-[13px] font-bold text-danger">エラーログ</h2>
+                <p className="text-xs text-muted mt-0.5">
+                  直近 30 日 / {recentErrors.length} 件 — 各行の「プロンプトをコピー」を Claude Code に貼り付けて修正依頼できます
+                </p>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[13px] border-collapse">
                 <thead>
-                  <tr className="text-muted text-left">
-                    <th className="pb-2 pr-3 font-medium">日時</th>
-                    <th className="pb-2 pr-3 font-medium">ユーザー</th>
-                    <th className="pb-2 pr-3 font-medium">キーワード</th>
-                    <th className="pb-2 pr-3 font-medium">媒体</th>
-                    <th className="pb-2 pr-3 font-medium">状態</th>
-                    <th className="pb-2 pr-3 font-medium text-right">件数</th>
-                    <th className="pb-2 font-medium text-right">中央値</th>
+                  <tr>
+                    {["日時", "ユーザー", "キーワード", "媒体", "修正依頼"].map((h, i) => (
+                      <th
+                        key={h}
+                        className={`px-4 py-2.5 text-[11px] font-semibold text-muted uppercase tracking-wider bg-surface-2 border-b border-border whitespace-nowrap ${i >= 4 ? "text-right" : "text-left"}`}
+                      >
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {searches.map((s) => (
+                  {recentErrors.map((s) => {
+                    const email = userEmailMap[s.user_id] ?? s.user_id;
+                    const prompt = buildFixPrompt(s, email);
+                    return (
+                      <tr
+                        key={s.id}
+                        className="hover:bg-surface-2 border-b border-border last:border-0"
+                      >
+                        <td className="px-4 py-3 text-muted whitespace-nowrap">
+                          {fmtDate(s.searched_at)}
+                        </td>
+                        <td className="px-4 py-3 text-foreground max-w-[120px] truncate">
+                          {email.split("@")[0]}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-foreground max-w-[180px] truncate">
+                          {s.keyword}
+                        </td>
+                        <td className="px-4 py-3 text-muted">
+                          {s.sources.map((src) => SOURCE_LABEL[src] ?? src).join(" / ")}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <CopyPromptButton prompt={prompt} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── 詳細ページ閲覧ログ ── */}
+        <div className="bg-surface border border-border rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+            <h2 className="text-[13px] font-bold">詳細ページ閲覧ログ</h2>
+            <span className="text-xs text-muted">直近 100 件</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px] border-collapse">
+              <thead>
+                <tr>
+                  {["日時", "ユーザー", "商品名", "媒体", "価格", "検索キーワード"].map(
+                    (h, i) => (
+                      <th
+                        key={h}
+                        className={`px-4 py-2.5 text-[11px] font-semibold text-muted uppercase tracking-wider bg-surface-2 border-b border-border whitespace-nowrap ${i >= 4 ? "text-right" : "text-left"}`}
+                      >
+                        {h}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {recentViews.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-muted text-sm">
+                      データなし
+                    </td>
+                  </tr>
+                ) : (
+                  recentViews.map((v) => (
+                    <tr
+                      key={v.id}
+                      className="hover:bg-surface-2 border-b border-border last:border-0"
+                    >
+                      <td className="px-4 py-3 text-muted whitespace-nowrap">
+                        {fmtDate(v.viewed_at)}
+                      </td>
+                      <td className="px-4 py-3 text-foreground max-w-[120px] truncate">
+                        {(userEmailMap[v.user_id] ?? v.user_id).split("@")[0]}
+                      </td>
+                      <td className="px-4 py-3 text-foreground max-w-[220px] truncate">
+                        {v.title}
+                      </td>
+                      <td className="px-4 py-3 text-muted whitespace-nowrap">
+                        {SOURCE_LABEL[v.source] ?? v.source}
+                      </td>
+                      <td className="px-4 py-3 text-right text-foreground font-semibold whitespace-nowrap">
+                        ¥{v.price.toLocaleString("ja-JP")}
+                      </td>
+                      <td className="px-4 py-3 text-muted max-w-[160px] truncate text-xs">
+                        {v.from_keyword ?? "—"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ── 検索アクティビティテーブル ── */}
+        <div className="bg-surface border border-border rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+            <h2 className="text-[13px] font-bold">検索アクティビティ</h2>
+            <span className="text-xs text-muted">直近 200 件</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px] border-collapse">
+              <thead>
+                <tr>
+                  {["日時", "ユーザー", "キーワード", "媒体", "状態", "件数", "中央値"].map(
+                    (h, i) => (
+                      <th
+                        key={h}
+                        className={`px-4 py-2.5 text-[11px] font-semibold text-muted uppercase tracking-wider bg-surface-2 border-b border-border whitespace-nowrap ${i >= 5 ? "text-right" : "text-left"}`}
+                      >
+                        {h}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {recent200.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-muted text-sm">
+                      データなし
+                    </td>
+                  </tr>
+                ) : (
+                  recent200.map((s) => (
                     <tr
                       key={s.id}
-                      className="border-t border-border hover:bg-surface/60"
+                      className="hover:bg-surface-2 border-b border-border last:border-0"
                     >
-                      <td className="py-2 pr-3 text-muted whitespace-nowrap">
+                      <td className="px-4 py-3 text-muted whitespace-nowrap">
                         {fmtDate(s.searched_at)}
                       </td>
-                      <td className="py-2 pr-3 text-foreground truncate max-w-[160px]">
-                        {userEmailMap[s.user_id]
-                          ? userEmailMap[s.user_id].split("@")[0]
-                          : s.user_id.slice(0, 6) + "…"}
+                      <td className="px-4 py-3 text-foreground max-w-[140px] truncate">
+                        {(userEmailMap[s.user_id] ?? s.user_id).split("@")[0]}
                       </td>
-                      <td className="py-2 pr-3 text-foreground font-medium max-w-[200px] truncate">
+                      <td className="px-4 py-3 font-semibold text-foreground max-w-[200px] truncate">
                         {s.keyword}
                       </td>
-                      <td className="py-2 pr-3 text-muted">
-                        {s.sources
-                          .map((src) => SOURCE_LABEL[src] ?? src)
-                          .join("/")}
+                      <td className="px-4 py-3 text-muted">
+                        {s.sources.map((src) => SOURCE_LABEL[src] ?? src).join(" / ")}
                       </td>
-                      <td className="py-2 pr-3">
+                      <td className="px-4 py-3">
                         <span
-                          className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                          className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
                             s.status === "completed"
-                              ? "bg-green-500/15 text-green-600"
+                              ? "bg-success/12 text-success"
                               : s.status === "error"
-                                ? "bg-red-500/15 text-red-600"
+                                ? "bg-danger/12 text-danger"
                                 : s.status === "running"
-                                  ? "bg-blue-500/15 text-blue-600"
-                                  : "bg-muted/20 text-muted"
+                                  ? "bg-info/12 text-info"
+                                  : "bg-muted/15 text-muted"
                           }`}
                         >
                           {STATUS_LABEL[s.status] ?? s.status}
                         </span>
                       </td>
-                      <td className="py-2 pr-3 text-right text-muted">
-                        {s.total_count != null ? s.total_count.toLocaleString("ja-JP") : "—"}
-                      </td>
-                      <td className="py-2 text-right text-muted">
-                        {s.median != null
-                          ? `¥${s.median.toLocaleString("ja-JP")}`
+                      <td className="px-4 py-3 text-right text-muted">
+                        {s.total_count != null
+                          ? s.total_count.toLocaleString("ja-JP")
                           : "—"}
                       </td>
+                      <td className="px-4 py-3 text-right font-semibold text-foreground">
+                        {s.median != null ? `¥${s.median.toLocaleString("ja-JP")}` : "—"}
+                      </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
-    </AppShell>
+    </>
   );
 }
