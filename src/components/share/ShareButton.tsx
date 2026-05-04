@@ -68,7 +68,7 @@ export function ShareButton({
 
   // 編集権限を選べるドロップダウン
   return (
-    <div className="relative">
+    <div className={`relative ${className}`}>
       <div className="flex items-center border border-border rounded-lg overflow-hidden bg-surface">
         <button
           onClick={() => createShare("view")}
