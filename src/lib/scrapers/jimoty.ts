@@ -5,15 +5,31 @@ import { createLogger } from "@/lib/logger";
 const log = createLogger("jimoty-scrape");
 
 /**
- * ジモティー (jmty.jp) スクレイパ
+ * ジモティー (jmty.jp) スクレイパ v2
  *
- * URL: https://jmty.jp/all?keyword=KEYWORD
+ * 確認済みHTML構造 (2026-05):
+ *   <li class="p-articles-list-item">
+ *     <div class="p-item-image-component">
+ *       <a href="https://jmty.jp/.../article-XXXX"><img src="..." alt="タイトル" /></a>
+ *     </div>
+ *     <div class="p-item-content-info">
+ *       <div class="p-item-title">
+ *         <a href="https://jmty.jp/.../article-XXXX">タイトル</a>
+ *       </div>
+ *       <div class="p-item-important-field">
+ *         <div class="p-item-most-important"><b>300円</b></div>   ← 価格
+ *         <div class="p-item-secondary-important"><a>東京都</a></div>  ← 所在地
+ *       </div>
+ *       <div class="p-item-history">更新5月4日 作成5月3日</div>
+ *     </div>
+ *   </li>
  *
- * ジモティーはローカル個人取引プラットフォーム。
- * Server-rendered HTML なので cheerio で直接パース可能。
+ * 注意: ジモティーは「売買成立済み (sold)」フィルタが存在しない。
+ *       掲載中のアクセス価格 (希望売値) を取得しているため、
+ *       ヤフオク落札価格・メルカリ売切価格とは性質が異なる。
  */
 
-const JMTY_BASE = "https://jmty.jp/all";
+const JMTY_BASE = "https://jmty.jp/all/sale";
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36";
 
@@ -21,9 +37,8 @@ export type JimotyScrapeOptions = {
   keyword: string;
   excludes?: string;
   limit?: number;
-  /** "sold" / "active" / "all" - ジモティーは現状フィルタなし (全件返却) */
+  /** "sold" / "active" / "all" — ジモティーはフィルタなし (全件返却) */
   status?: "sold" | "active" | "all";
-  /** 1-indexed ページ番号 (デフォルト 1) */
   page?: number;
 };
 
@@ -32,8 +47,7 @@ export async function scrapeJimoty(
 ): Promise<SourceResult> {
   const { keyword, excludes, limit = 30, page = 1 } = options;
 
-  // Jimoty 検索: /all/sale?keyword=... が「売ります」全カテゴリの検索 URL
-  const url = new URL("https://jmty.jp/all/sale");
+  const url = new URL(JMTY_BASE);
   url.searchParams.set("keyword", keyword);
   if (page > 1) url.searchParams.set("page", String(page));
 
@@ -49,209 +63,149 @@ export async function scrapeJimoty(
     redirect: "follow",
   });
 
-  log.info(
-    "status:",
-    res.status,
-    "url:",
-    url.toString(),
-    "final:",
-    res.url,
-  );
+  log.info("status:", res.status, "url:", url.toString());
 
   if (!res.ok) {
     throw new Error(`ジモティー応答エラー: ${res.status}`);
   }
 
   const html = await res.text();
-  log.info("html size:", html.length);
-
-  // HTML サンプル: <main> や <h1> 周辺を見て検索結果ページか判定
-  const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
-  if (h1Match) {
-    log.info("h1:", h1Match[1].replace(/<[^>]+>/g, "").trim().slice(0, 200));
-  }
-  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/);
-  if (titleMatch) {
-    log.info("page title:", titleMatch[1].trim());
-  }
-
-  // 構造プローブ
-  const allArticleLinks = (html.match(/article-[a-z0-9_]+/gi) ?? []).length;
-  const prefArticleLinks = (
-    html.match(/\/[a-z_]+\/sale-[a-z_]+\/article-[a-z0-9_]+/gi) ?? []
-  ).length;
-  const sampleUrls = Array.from(
-    new Set(
-      (html.match(/\/[a-z_]+\/sale-[a-z_]+\/article-[a-z0-9_]+/gi) ?? []).slice(
-        0,
-        5,
-      ),
-    ),
-  );
-  log.info("structure probe:", {
-    allArticleLinks,
-    prefArticleLinks,
-    sampleUrls,
-    hasNextData: html.includes('id="__NEXT_DATA__"'),
-    hasJsonLd: html.includes('type="application/ld+json"'),
-  });
-
-  // パース: 検索結果以外 (?from=pr 等のおすすめリンク) を除外する
-  const listings = parseJimotyHtml(html, limit).filter((l) => {
-    // ?from=pr のような promoted リンクを除外
-    return !l.url.includes("?from=pr") && !l.url.includes("&from=pr");
-  });
+  const listings = parseJimotyHtml(html, limit);
   const totalAvailable = parseTotalCount(html);
 
-  log.info("parsed (excl. promoted):", listings.length);
-  log.info("total available:", totalAvailable);
+  log.info("parsed:", listings.length, "total:", totalAvailable);
   if (listings[0]) {
-    log.info("sample listing:", JSON.stringify(listings[0]).slice(0, 300));
-  }
-  if (listings[1]) {
-    log.info("sample listing 2:", JSON.stringify(listings[1]).slice(0, 300));
+    log.info("sample[0]:", JSON.stringify(listings[0]).slice(0, 200));
   }
 
-  // excludes クライアント側フィルタ
+  // excludes フィルタ
   let filtered = listings;
-  if (excludes && excludes.trim()) {
-    const terms = excludes
-      .trim()
-      .toLowerCase()
-      .split(/\s+/)
-      .filter(Boolean);
-    filtered = listings.filter((l) => {
-      const t = l.title.toLowerCase();
-      return terms.every((term) => !t.includes(term));
-    });
+  if (excludes?.trim()) {
+    const terms = excludes.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    filtered = listings.filter((l) =>
+      terms.every((term) => !l.title.toLowerCase().includes(term)),
+    );
   }
 
-  // 次ページ判定: 取得 listings が limit 一杯ならまだ続きがあると推定
   const hasNextPage = listings.length >= limit;
   return summarize(filtered, totalAvailable, hasNextPage);
 }
 
+// ============================================================================
+// HTML パーサー
+// ============================================================================
+
 function parseJimotyHtml(html: string, limit: number): Listing[] {
   const $ = cheerio.load(html);
   const listings: Listing[] = [];
-  const seenIds = new Set<string>();
 
-  // ジモティーの商品 URL パターン: /all/article-12345 等
-  $('a[href*="article-"]').each((_, link) => {
+  $("li.p-articles-list-item").each((_, el) => {
     if (listings.length >= limit) return false;
-    const $link = $(link);
-    const href = $link.attr("href") ?? "";
+    const $item = $(el);
+
+    // ── URL & ID ─────────────────────────────────────────
+    // p-item-title の <a> を優先。なければ画像リンク
+    const $titleLink = $item.find("div.p-item-title a").first();
+    const $imageLink = $item.find("div.p-item-image-component a[href*='article-']").first();
+    const href =
+      $titleLink.attr("href") ??
+      $imageLink.attr("href") ??
+      "";
     const idMatch = href.match(/article-([a-z0-9_]+)/i);
     if (!idMatch) return;
-    const id = idMatch[1];
-    if (seenIds.has(id)) return;
 
-    // タイトル
-    let title = $link.attr("title")?.trim() || "";
+    // ── タイトル ─────────────────────────────────────────
+    // p-item-title テキスト → 画像 alt → img alt フォールバック
+    let title = $titleLink.text().trim();
     if (!title || title.length < 3) {
       title =
-        $link.find("img").attr("alt")?.trim() ||
-        $link.text().trim().replace(/\s+/g, " ") ||
+        $imageLink.find("img").attr("alt")?.trim() ??
+        $item.find("img").first().attr("alt")?.trim() ??
         "";
     }
     if (!title || title.length < 3) return;
 
-    // カードとして親要素を探索 (li 優先 → article → div)
-    let $card = $link.closest("li");
-    if (!$card.length) $card = $link.closest("article");
-    if (!$card.length) $card = $link.closest("div");
-    if (!$card.length) return;
-
-    // card 内に価格パターンが無ければ、親を最大 3 段まで遡る
-    // (Jimoty レイアウトによっては <a> の親 div が画像だけ含み、
-    //  価格は同階層の別 div にある場合がある)
-    const PRICE_RE = /[¥￥]\s?[\d,]+|[\d,]+\s?円/;
-    for (let i = 0; i < 3; i++) {
-      if (PRICE_RE.test($card.text())) break;
-      const $parent = $card.parent();
-      if (!$parent.length) break;
-      // 親が body や main のような巨大要素になったら止める
-      if (
-        $parent.is("body, main, ul, [role='list']") ||
-        ($parent.find('a[href*="article-"]').length > 1 && i > 0)
-      )
-        break;
-      $card = $parent;
-    }
-
-    // 価格抽出: card 内のテキストから ¥X,XXX または X,XXX円 を探す
-    // 「最初に見つかったもっともらしい価格」を採用 (最小値方式は ¥0 誤検出を生む)
-    const cardText = $card.text();
+    // ── 価格 ─────────────────────────────────────────────
+    // p-item-most-important > b タグを直接参照 (最も信頼性が高い)
     let price = 0;
-    const priceMatches = Array.from(
-      cardText.matchAll(/[¥￥]\s?([\d,]+)|([\d,]+)\s?円/g),
-    );
-    const candidates = priceMatches
-      .map((m) => Number((m[1] ?? m[2]).replace(/,/g, "")))
-      .filter((n) => Number.isFinite(n) && n >= 0 && n < 100_000_000);
-    if (candidates.length > 0) {
-      // 0 を除外した中の最初のものを採用 (0 は「全 30 件中 0 件」など別文脈の可能性)
-      const nonZero = candidates.filter((n) => n > 0);
-      price = nonZero[0] ?? candidates[0];
-    } else if (/あげます|差し上げ|無料|タダ/.test(cardText)) {
-      price = 0;
-    }
-
-    // 最初の 2 件だけ診断ログ
-    if (listings.length < 2) {
-      log.info(
-        `card[${listings.length}] tag=${$card.prop("tagName")}`,
-        "priceCandidates:",
-        candidates,
-        "cardTextSample:",
-        cardText.replace(/\s+/g, " ").slice(0, 200),
-      );
-    }
-
-    // サムネイル
-    const thumbnail = $card.find("img").first().attr("src") ?? undefined;
-
-    // 所在地: card text から都道府県名を抽出
-    let location: string | undefined;
-    const PREF_RE = /(北海道|青森県|岩手県|宮城県|秋田県|山形県|福島県|茨城県|栃木県|群馬県|埼玉県|千葉県|東京都|神奈川県|新潟県|富山県|石川県|福井県|山梨県|長野県|岐阜県|静岡県|愛知県|三重県|滋賀県|京都府|大阪府|兵庫県|奈良県|和歌山県|鳥取県|島根県|岡山県|広島県|山口県|徳島県|香川県|愛媛県|高知県|福岡県|佐賀県|長崎県|熊本県|大分県|宮崎県|鹿児島県|沖縄県)/;
-    const prefMatch = cardText.match(PREF_RE);
-    if (prefMatch) location = prefMatch[1];
-
-    // 投稿日 (相対表記が多い: "1日前" "1時間前" 等)
-    let endedAt = "";
-    const dateMatch = cardText.match(/(\d+)\s*(分|時間|日|週間|か月|ヶ月|年)前/);
-    if (dateMatch) {
-      const n = Number(dateMatch[1]);
-      const unit = dateMatch[2];
-      const ms = unitToMs(unit) * n;
-      if (Number.isFinite(ms)) {
-        endedAt = new Date(Date.now() - ms).toISOString();
+    const $priceEl = $item.find("div.p-item-most-important b").first();
+    if ($priceEl.length) {
+      const raw = $priceEl.text().trim();
+      if (/無料|あげます|差し上げ|タダ/.test(raw)) {
+        price = 0; // 無料出品
+      } else {
+        const m = raw.match(/([\d,]+)/);
+        if (m) {
+          const n = Number(m[1].replace(/,/g, ""));
+          if (Number.isFinite(n) && n >= 0 && n < 100_000_000) price = n;
+        }
+      }
+    } else {
+      // フォールバック: カードテキスト全体を走査
+      const cardText = $item.text();
+      if (/無料|あげます|差し上げ|タダ/.test(cardText)) {
+        price = 0;
+      } else {
+        // 「X円」か「¥X」を探す
+        const priceMatches = Array.from(
+          cardText.matchAll(/[¥￥]([\d,]+)|([\d,]+)\s?円/g),
+        );
+        const candidates = priceMatches
+          .map((m) => Number((m[1] ?? m[2]).replace(/,/g, "")))
+          .filter((n) => Number.isFinite(n) && n > 0 && n < 100_000_000);
+        price = candidates[0] ?? 0;
       }
     }
 
-    // お気に入り登録数 (一覧カードでは「♡ 4」「お気に入り 4」等で表示される)
-    let likes: number | undefined;
-    const likesMatch =
-      cardText.match(/(\d+)\s*お気に入り/) ||
-      cardText.match(/お気に入り[^\d]{0,5}(\d+)/) ||
-      cardText.match(/[♡❤️]\s*(\d+)/);
-    if (likesMatch) {
-      const n = Number(likesMatch[1]);
-      if (Number.isFinite(n) && n >= 0 && n < 1_000_000) likes = n;
+    // ── サムネイル ────────────────────────────────────────
+    const thumbnail =
+      $item.find("div.p-item-image-component img").first().attr("src") ??
+      undefined;
+
+    // ── 所在地 ────────────────────────────────────────────
+    const location =
+      $item.find("div.p-item-secondary-important a").first().text().trim() ||
+      undefined;
+
+    // ── 投稿日 / 更新日 ───────────────────────────────────
+    // 形式: "更新5月4日" "作成5月3日" / "1日前" "3時間前" 等
+    let endedAt = "";
+    const historyText = $item.find("div.p-item-history").text().trim();
+    const relMatch = historyText.match(/(\d+)\s*(分|時間|日|週間|か月|ヶ月|年)前/);
+    const absMatch = historyText.match(/(\d{1,2})月(\d{1,2})日/);
+    if (relMatch) {
+      const ms = unitToMs(relMatch[2]) * Number(relMatch[1]);
+      if (Number.isFinite(ms) && ms > 0) {
+        endedAt = new Date(Date.now() - ms).toISOString();
+      }
+    } else if (absMatch) {
+      const month = Number(absMatch[1]);
+      const day = Number(absMatch[2]);
+      const now = new Date();
+      const d = new Date(now.getFullYear(), month - 1, day);
+      // 未来日 (年またぎ) → 前年とみなす
+      if (d > now) d.setFullYear(now.getFullYear() - 1);
+      endedAt = d.toISOString();
     }
 
-    // ストア / 個人 判別:
-    // - card text に「法人」「事業者」「店舗」が含まれればストア
-    // - seller リンクが /biz/ や /shop/ を含めばストア
-    const sellerType: "store" | "individual" =
-      /法人|事業者|店舗|ショップ/.test(cardText) ||
-      /\/(biz|shop|store)\//i.test($card.find("a[href*='/profiles/']").attr("href") ?? "")
-        ? "store"
-        : "individual";
+    // ── お気に入り数 ──────────────────────────────────────
+    let likes: number | undefined;
+    const favText = $item.find(".js_favorite_count, [data-favorite-count]").text().trim();
+    if (favText) {
+      const n = Number(favText);
+      if (Number.isFinite(n) && n >= 0) likes = n;
+    }
+    // データ属性フォールバック
+    if (likes === undefined) {
+      const dataCount = $item.find("[data-favorite-count]").attr("data-favorite-count");
+      if (dataCount !== undefined) {
+        const n = Number(dataCount);
+        if (Number.isFinite(n) && n >= 0) likes = n;
+      }
+    }
 
-    seenIds.add(id);
     listings.push({
-      id,
+      id: idMatch[1],
       title,
       price,
       endedAt,
@@ -259,27 +213,30 @@ function parseJimotyHtml(html: string, limit: number): Listing[] {
       url: href.startsWith("http") ? href : `https://jmty.jp${href}`,
       location,
       likes,
-      sellerType,
+      sellerType: "individual", // ジモティーは基本的に個人取引
     });
   });
 
   return listings;
 }
 
+// ============================================================================
+// ヘルパー
+// ============================================================================
+
 function unitToMs(unit: string): number {
   const map: Record<string, number> = {
-    分: 60 * 1000,
-    時間: 60 * 60 * 1000,
-    日: 24 * 60 * 60 * 1000,
-    週間: 7 * 24 * 60 * 60 * 1000,
-    か月: 30 * 24 * 60 * 60 * 1000,
-    ヶ月: 30 * 24 * 60 * 60 * 1000,
-    年: 365 * 24 * 60 * 60 * 1000,
+    分: 60_000,
+    時間: 3_600_000,
+    日: 86_400_000,
+    週間: 604_800_000,
+    か月: 2_592_000_000,
+    ヶ月: 2_592_000_000,
+    年: 31_536_000_000,
   };
   return map[unit] ?? 0;
 }
 
-// 総件数の抽出 (HTML テキストから "X件" パターンを探す)
 function parseTotalCount(html: string): number | undefined {
   const patterns = [
     /([\d,]+)\s*件中/,
@@ -290,10 +247,7 @@ function parseTotalCount(html: string): number | undefined {
     const m = html.match(re);
     if (m) {
       const n = Number(m[1].replace(/,/g, ""));
-      if (Number.isFinite(n) && n > 0) {
-        log.info(`totalCount via HTML regex (${re}):`, n);
-        return n;
-      }
+      if (Number.isFinite(n) && n > 0) return n;
     }
   }
   return undefined;
@@ -304,32 +258,35 @@ function summarize(
   totalAvailable?: number,
   hasNextPage?: boolean,
 ): SourceResult {
-  const prices = listings.map((l) => l.price).sort((a, b) => a - b);
-  const count = listings.length;
+  // 価格が 0 の無料出品は相場統計から除外する
+  const priced = listings.filter((l) => l.price > 0);
+  const prices = priced.map((l) => l.price).sort((a, b) => a - b);
+  const count = priced.length;
+
   if (count === 0) {
     return {
       source: "jimoty",
-      count: 0,
+      count: listings.length, // 無料含む総件数
       median: 0,
       min: 0,
       max: 0,
-      listings: [],
+      listings,
       totalAvailable,
       hasNextPage,
     };
   }
+
   const median =
     count % 2 === 1
       ? prices[Math.floor(count / 2)]
       : Math.round((prices[count / 2 - 1] + prices[count / 2]) / 2);
-  const min = prices[0];
-  const max = prices[count - 1];
+
   return {
     source: "jimoty",
-    count,
+    count: listings.length,
     median,
-    min,
-    max,
+    min: prices[0],
+    max: prices[count - 1],
     listings,
     totalAvailable,
     hasNextPage,
