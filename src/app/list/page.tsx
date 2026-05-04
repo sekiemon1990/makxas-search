@@ -38,6 +38,7 @@ import {
 import { ListPicker } from "@/components/ListPicker";
 import { RenameListModal } from "@/components/RenameListModal";
 import { toast } from "@/lib/toast";
+import { ShareButton } from "@/components/share/ShareButton";
 
 export default function ListPage() {
   const list = useCurrentList();
@@ -207,6 +208,16 @@ export default function ListPage() {
                 このリストをクリア
               </button>
             </section>
+
+            {/* 共有ボタン */}
+            <div className="flex justify-center pt-1">
+              <ShareButton
+                resourceType="list"
+                resourceId={list.id}
+                allowEdit={true}
+                className="tap-scale w-full h-10 text-sm justify-center"
+              />
+            </div>
           </>
         )}
       </div>

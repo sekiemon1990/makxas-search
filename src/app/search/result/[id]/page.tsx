@@ -72,6 +72,7 @@ import { generateSuggestions } from "@/lib/suggestions";
 import { ConditionBadge } from "@/components/ConditionBadge";
 import { ToolsPanel } from "@/components/ToolsPanel";
 import { addCompletedItem, useIsInList } from "@/lib/list";
+import { ShareButton } from "@/components/share/ShareButton";
 import { ListPlus, ListChecks } from "lucide-react";
 import { QuickMemoModal } from "@/components/QuickMemoModal";
 import { PlatformPriceBars } from "@/components/PlatformPriceBars";
@@ -1357,6 +1358,15 @@ function ResultInner({ resultId }: { resultId: string }) {
           )}
         </button>
       </section>
+
+      {/* 共有リンク発行 */}
+      <div className="flex justify-center">
+        <ShareButton
+          resourceType="search"
+          resourceId={resultId}
+          className="tap-scale w-full h-10 text-sm justify-center"
+        />
+      </div>
 
       {/* 検索メモ（ページ下部） */}
       <section className="bg-surface border border-border rounded-xl p-4 mt-4">
