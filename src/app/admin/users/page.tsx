@@ -30,7 +30,6 @@ type UserStat = {
   viewCount30d: number;
   errorCount30d: number;
   lastActive: string | null;
-  topKeywords: string[];
   topSources: string[];
   recentSearches: SearchRow[];
   recentViews: ViewRow[];
@@ -142,16 +141,6 @@ function buildUserStats(
     const userSearches = searchesByUser[userId] ?? [];
     const userViews = viewsByUser[userId] ?? [];
 
-    // トップキーワード（検索数 TOP 3）
-    const kwCount: Record<string, number> = {};
-    userSearches.forEach((s) => {
-      kwCount[s.keyword] = (kwCount[s.keyword] ?? 0) + 1;
-    });
-    const topKeywords = Object.entries(kwCount)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 3)
-      .map(([kw]) => kw);
-
     // 閲覧媒体 TOP 3
     const srcCount: Record<string, number> = {};
     userViews.forEach((v) => {
@@ -176,7 +165,6 @@ function buildUserStats(
       viewCount30d: userViews.length,
       errorCount30d: userSearches.filter((s) => s.status === "error").length,
       lastActive,
-      topKeywords,
       topSources,
       recentSearches: userSearches.slice(0, 5),
       recentViews: userViews.slice(0, 5),
@@ -302,44 +290,23 @@ export default async function AdminUsersPage() {
                 </div>
 
                 {/* タグ情報 */}
-                <div className="px-6 py-3 flex items-start gap-8 border-b border-border bg-surface-2/50">
-                  <div className="flex-1">
-                    <div className="text-[10px] text-muted font-semibold uppercase tracking-wider mb-2">
-                      よく検索するキーワード
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {stat.topKeywords.length > 0 ? (
-                        stat.topKeywords.map((kw) => (
-                          <span
-                            key={kw}
-                            className="bg-primary/8 text-primary text-[11px] px-2 py-0.5 rounded"
-                          >
-                            {kw}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-muted">なし</span>
-                      )}
-                    </div>
+                <div className="px-6 py-3 border-b border-border bg-surface-2/50">
+                  <div className="text-[10px] text-muted font-semibold uppercase tracking-wider mb-2">
+                    よく閲覧する媒体
                   </div>
-                  <div className="flex-1">
-                    <div className="text-[10px] text-muted font-semibold uppercase tracking-wider mb-2">
-                      よく閲覧する媒体
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {stat.topSources.length > 0 ? (
-                        stat.topSources.map((src) => (
-                          <span
-                            key={src}
-                            className="bg-info/8 text-info text-[11px] px-2 py-0.5 rounded"
-                          >
-                            {src}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-muted">なし</span>
-                      )}
-                    </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {stat.topSources.length > 0 ? (
+                      stat.topSources.map((src) => (
+                        <span
+                          key={src}
+                          className="bg-info/8 text-info text-[11px] px-2 py-0.5 rounded"
+                        >
+                          {src}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-muted">なし</span>
+                    )}
                   </div>
                 </div>
 
