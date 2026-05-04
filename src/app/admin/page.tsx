@@ -244,6 +244,56 @@ function aggregate(searches: SearchRow[], views: ViewRow[]) {
     1,
   );
 
+  // ── ① スクレイパー稼働状況（直近 7 日）──
+  const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const recent7dSearches = searches.filter((s) => s.searched_at >= since7d);
+  const TRACKED_SOURCES = ["yahoo_auction", "mercari", "jimoty"] as const;
+  const scraperStats = TRACKED_SOURCES.map((src) => {
+    const relevant = recent7dSearches.filter(
+      (s) => s.sources.includes(src) && (s.status === "completed" || s.status === "error"),
+    );
+    const errors = relevant.filter((s) => s.status === "error").length;
+    const total = relevant.length;
+    const errorRate = total > 0 ? (errors / total) * 100 : 0;
+    const level =
+      errorRate === 0 ? "ok" : errorRate < 5 ? "ok" : errorRate < 15 ? "warn" : "error";
+    return { src, total, errors, errorRate, level };
+  });
+
+  // ── ④ 検索→閲覧の転換率（今月）──
+  const monthCompleted = monthSearches.filter((s) => s.status === "completed");
+  const conversionRate =
+    monthCompleted.length > 0
+      ? ((monthViews.length / monthCompleted.length) * 100).toFixed(0)
+      : "0";
+  // ユーザー単位: 検索したユーザーのうち閲覧もしたユーザーの割合
+  const searchUserIds = new Set(monthSearches.map((s) => s.user_id));
+  const viewUserIds = new Set(monthViews.map((v) => v.user_id));
+  const convertedUsers = [...searchUserIds].filter((id) => viewUserIds.has(id)).length;
+  const userConversionRate =
+    searchUserIds.size > 0
+      ? Math.round((convertedUsers / searchUserIds.size) * 100)
+      : 0;
+
+  // ── ⑤ 空振り検索（今月）──
+  const zeroResultSearches = searches.filter(
+    (s) => s.status === "completed" && s.total_count === 0,
+  );
+  const monthZeroResults = zeroResultSearches.filter((s) =>
+    s.searched_at.startsWith(monthStr),
+  );
+  const zeroResultRate =
+    monthCompleted.length > 0
+      ? ((monthZeroResults.length / monthCompleted.length) * 100).toFixed(1)
+      : "0.0";
+  // 空振り多い媒体
+  const zeroSourceCounts: Record<string, number> = {};
+  monthZeroResults.forEach((s) => {
+    s.sources.forEach((src) => {
+      zeroSourceCounts[src] = (zeroSourceCounts[src] ?? 0) + 1;
+    });
+  });
+
   return {
     todayTotal,
     todayErrorRate,
@@ -263,6 +313,15 @@ function aggregate(searches: SearchRow[], views: ViewRow[]) {
     totalViewSources,
     dailyViewCounts,
     maxDailyViewCount,
+    // ① スクレイパー稼働状況
+    scraperStats,
+    // ④ 転換率
+    conversionRate,
+    userConversionRate,
+    // ⑤ 空振り
+    zeroResultCount: monthZeroResults.length,
+    zeroResultRate,
+    zeroSourceCounts,
   };
 }
 
@@ -277,6 +336,11 @@ export default async function AdminDashboardPage() {
 
   // エラー一覧（直近30件）
   const recentErrors = searches.filter((s) => s.status === "error").slice(0, 30);
+
+  // 空振り一覧（直近20件）
+  const recentZeroResults = searches
+    .filter((s) => s.status === "completed" && s.total_count === 0)
+    .slice(0, 20);
 
   // 最近の閲覧ログ（直近100件）
   const recentViews = views.slice(0, 100);
@@ -535,6 +599,144 @@ export default async function AdminDashboardPage() {
             )}
           </div>
         </div>
+
+        {/* ── ① スクレイパー稼働状況 ── */}
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-wider text-muted mb-3">
+            スクレイパー稼働状況（直近 7 日）
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            {agg.scraperStats.map(({ src, total, errors, errorRate, level }) => (
+              <div key={src} className="bg-surface border border-border rounded-xl px-6 py-5">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[13px] font-semibold text-foreground">
+                    {SOURCE_LABEL[src] ?? src}
+                  </span>
+                  <span
+                    className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                      level === "ok"
+                        ? "bg-success/12 text-success"
+                        : level === "warn"
+                          ? "bg-warning/12 text-warning"
+                          : "bg-danger/12 text-danger"
+                    }`}
+                  >
+                    {level === "ok" ? "正常" : level === "warn" ? "注意" : "異常"}
+                  </span>
+                </div>
+                <div className="text-3xl font-bold leading-none text-foreground">
+                  {errorRate.toFixed(1)}%
+                </div>
+                <div className="text-xs text-muted mt-1.5">エラー率</div>
+                <div className="text-xs text-muted mt-2">
+                  検索 {total} 件 / エラー {errors} 件
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── ④ 転換率 ＋ ⑤ 空振り ── */}
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-wider text-muted mb-3">
+            検索品質（今月）
+          </div>
+          <div className="grid grid-cols-4 gap-4">
+            <div className="bg-surface border border-border rounded-xl px-6 py-5">
+              <div className="text-xs text-muted mb-1.5">検索→閲覧 転換率</div>
+              <div className="text-3xl font-bold text-foreground leading-none">
+                {agg.conversionRate}%
+              </div>
+              <div className="text-xs text-muted mt-1.5">
+                完了検索 1 件あたりの閲覧数
+              </div>
+            </div>
+            <div className="bg-surface border border-border rounded-xl px-6 py-5">
+              <div className="text-xs text-muted mb-1.5">閲覧ユーザー率</div>
+              <div className="text-3xl font-bold text-foreground leading-none">
+                {agg.userConversionRate}%
+              </div>
+              <div className="text-xs text-muted mt-1.5">
+                検索ユーザーのうち詳細も閲覧
+              </div>
+            </div>
+            <div className="bg-surface border border-border rounded-xl px-6 py-5">
+              <div className="text-xs text-muted mb-1.5">空振り検索数</div>
+              <div
+                className={`text-3xl font-bold leading-none ${agg.zeroResultCount > 0 ? "text-warning" : "text-foreground"}`}
+              >
+                {agg.zeroResultCount}
+              </div>
+              <div className="text-xs text-muted mt-1.5">結果 0 件の完了検索</div>
+            </div>
+            <div className="bg-surface border border-border rounded-xl px-6 py-5">
+              <div className="text-xs text-muted mb-1.5">空振り率</div>
+              <div
+                className={`text-3xl font-bold leading-none ${Number(agg.zeroResultRate) >= 10 ? "text-warning" : "text-foreground"}`}
+              >
+                {agg.zeroResultRate}%
+              </div>
+              <div className="text-xs text-muted mt-1.5">
+                {Object.entries(agg.zeroSourceCounts)
+                  .sort(([, a], [, b]) => b - a)
+                  .slice(0, 2)
+                  .map(([src, n]) => `${SOURCE_LABEL[src] ?? src} ${n}件`)
+                  .join(" / ") || "問題なし"}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── ⑤ 空振り検索テーブル ── */}
+        {recentZeroResults.length > 0 && (
+          <div className="bg-surface border border-warning/30 rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-warning/5">
+              <div>
+                <h2 className="text-[13px] font-bold text-warning">空振り検索ログ</h2>
+                <p className="text-xs text-muted mt-0.5">
+                  今月 {agg.zeroResultCount} 件 — 結果が 0 件だった完了検索。キーワードや媒体の見直しに活用してください
+                </p>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[13px] border-collapse">
+                <thead>
+                  <tr>
+                    {["日時", "ユーザー", "キーワード", "媒体"].map((h) => (
+                      <th
+                        key={h}
+                        className="px-4 py-2.5 text-[11px] font-semibold text-muted uppercase tracking-wider bg-surface-2 border-b border-border whitespace-nowrap text-left"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentZeroResults.map((s) => (
+                    <tr
+                      key={s.id}
+                      className="hover:bg-surface-2 border-b border-border last:border-0"
+                    >
+                      <td className="px-4 py-3 text-muted whitespace-nowrap">
+                        {fmtDate(s.searched_at)}
+                      </td>
+                      <td className="px-4 py-3 text-foreground max-w-[140px] truncate">
+                        {(userEmailMap[s.user_id] ?? s.user_id).split("@")[0]}
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-foreground max-w-[240px] truncate">
+                        {s.keyword}
+                      </td>
+                      <td className="px-4 py-3 text-muted whitespace-nowrap">
+                        {s.sources.map((src) => SOURCE_LABEL[src] ?? src).join(" / ")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* ── エラーログ ── */}
         {recentErrors.length > 0 && (
