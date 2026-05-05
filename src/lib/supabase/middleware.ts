@@ -42,7 +42,10 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/api") ||
     path.includes(".");
 
-  if (!user && !isAuthPath && !isStaticPath) {
+  // 共有ページ・管理画面は別途制御するため除外
+  const isSharePath = path.startsWith("/share");
+
+  if (!user && !isAuthPath && !isSharePath && !isStaticPath) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", path);
