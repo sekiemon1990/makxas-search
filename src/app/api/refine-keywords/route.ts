@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { getRequestUserId, logApiUsage } from "@/lib/api-cost";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -96,7 +97,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const client = new Anthropic();
+  const [client, userId] = [new Anthropic(), await getRequestUserId()];
 
   const user = [
     `ユーザーキーワード: ${body.keyword}`,
@@ -126,6 +127,14 @@ export async function POST(req: Request) {
         format: { type: "json_schema", schema: REFINE_SCHEMA },
       },
       messages: [{ role: "user", content: user }],
+    });
+
+    // 使用量を記録（レスポンスをブロックしない）
+    logApiUsage({
+      userId,
+      endpoint: "refine-keywords",
+      model: "claude-opus-4-7",
+      usage: response.usage,
     });
 
     const textBlock = response.content.find(
