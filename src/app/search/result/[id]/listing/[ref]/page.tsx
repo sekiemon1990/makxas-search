@@ -17,6 +17,8 @@ import {
   Sparkles,
   Star,
   StickyNote,
+  ListPlus,
+  Check,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { SourceBadge } from "@/components/SourceBadge";
@@ -42,6 +44,8 @@ import {
 } from "@/lib/storage";
 import { MOCK_RESULT as MOCK } from "@/lib/mock-data";
 import { SOURCES, getStoreLabel, type SourceKey } from "@/lib/types";
+import { addItemToList, removeItem, useDefaultQuery, useIsInListByKeyword } from "@/lib/list";
+import { toast } from "@/lib/toast";
 
 function parseRef(ref: string): { source: SourceKey; lid: string } | null {
   const [src, ...rest] = ref.split("-");
@@ -256,6 +260,10 @@ function DetailInner({ id, listingRefParam }: { id: string; listingRefParam: str
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [memoEditing, setMemoEditing] = useState(false);
   const [memoDraft, setMemoDraft] = useState<string | null>(null);
+  const [addedToList, setAddedToList] = useState(false);
+  const [showReplaceDialog, setShowReplaceDialog] = useState(false);
+  const [defaultQuery] = useDefaultQuery();
+  const { isInList, existingItemId } = useIsInListByKeyword(fromKeyword);
 
   const listingRef = `${source}-${lid}`;
   const pinned = useListingPinnedValue(listingRef);
@@ -546,6 +554,97 @@ function DetailInner({ id, listingRefParam }: { id: string; listingRefParam: str
             </span>
           )}
         </div>
+        {/* リストに追加 */}
+        <button
+          type="button"
+          onClick={async () => {
+            if (addedToList) return;
+            // 元の検索KWが既にリストにある場合は確認ダイアログ
+            if (isInList && fromKeyword) {
+              setShowReplaceDialog(true);
+              return;
+            }
+            await addItemToList({
+              keyword: listing.title,
+              period: defaultQuery.period,
+              sources: defaultQuery.sources,
+              conditions: defaultQuery.conditions,
+              shipping: defaultQuery.shipping,
+            });
+            setAddedToList(true);
+            toast({ message: "査定リストに追加しました。相場検索を開始します。" });
+          }}
+          className={`mt-3 w-full h-10 rounded-lg flex items-center justify-center gap-2 text-sm font-semibold transition-colors ${
+            addedToList
+              ? "bg-success/10 text-success border border-success/30"
+              : "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20"
+          }`}
+        >
+          {addedToList ? (
+            <><Check size={15} />リストに追加済み</>
+          ) : (
+            <><ListPlus size={15} />査定リストに追加</>
+          )}
+        </button>
+
+        {/* 既存KW削除確認ダイアログ */}
+        {showReplaceDialog && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-8">
+            <div className="bg-surface rounded-2xl p-5 w-full max-w-sm shadow-xl">
+              <h3 className="text-sm font-bold text-foreground mb-1">リストのキーワードを削除しますか？</h3>
+              <p className="text-xs text-muted mb-4">
+                「{fromKeyword}」がすでにリストにあります。<br />
+                この商品を追加する際に元のキーワード検索を削除して入れ替えることができます。
+              </p>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (existingItemId) await removeItem(existingItemId);
+                    await addItemToList({
+                      keyword: listing.title,
+                      period: defaultQuery.period,
+                      sources: defaultQuery.sources,
+                      conditions: defaultQuery.conditions,
+                      shipping: defaultQuery.shipping,
+                    });
+                    setAddedToList(true);
+                    setShowReplaceDialog(false);
+                    toast({ message: "入れ替えました。相場検索を開始します。" });
+                  }}
+                  className="w-full h-11 rounded-xl bg-danger/10 text-danger text-sm font-semibold border border-danger/20"
+                >
+                  「{fromKeyword}」を削除して入れ替え
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await addItemToList({
+                      keyword: listing.title,
+                      period: defaultQuery.period,
+                      sources: defaultQuery.sources,
+                      conditions: defaultQuery.conditions,
+                      shipping: defaultQuery.shipping,
+                    });
+                    setAddedToList(true);
+                    setShowReplaceDialog(false);
+                    toast({ message: "リストに追加しました。相場検索を開始します。" });
+                  }}
+                  className="w-full h-11 rounded-xl bg-primary/10 text-primary text-sm font-semibold border border-primary/20"
+                >
+                  両方リストに残す
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowReplaceDialog(false)}
+                  className="w-full h-11 rounded-xl border border-border text-muted text-sm"
+                >
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* 詳細情報 */}

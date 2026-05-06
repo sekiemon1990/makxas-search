@@ -16,7 +16,24 @@ import {
   WifiOff,
   Wifi,
   StickyNote,
+  GripVertical,
 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   useOfflineQueue,
   removeFromOfflineQueue,
@@ -35,6 +52,7 @@ import {
   saveCurrentAndCreateNew,
   addItemToList,
   updateItemNotes,
+  reorderItems,
   type ListItem,
 } from "@/lib/list";
 import { ListPicker } from "@/components/ListPicker";
@@ -47,13 +65,35 @@ export default function ListPage() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
+  const [sortedCompleted, setSortedCompleted] = useState<ListItem[]>([]);
 
   const running = list.items.filter((i) => i.status === "running");
   const queued = list.items.filter((i) => i.status === "queued");
-  const completed = list.items.filter((i) => i.status === "completed");
+  const rawCompleted = list.items.filter((i) => i.status === "completed");
   const failed = list.items.filter(
     (i) => i.status === "error" || i.status === "cancelled"
   );
+
+  // DBから取得した順序を反映（ローカルソート状態がリセットされた場合）
+  const completed = sortedCompleted.length > 0 &&
+    sortedCompleted.every(s => rawCompleted.some(r => r.id === s.id))
+    ? sortedCompleted
+    : rawCompleted;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = completed.findIndex((i) => i.id === active.id);
+    const newIndex = completed.findIndex((i) => i.id === over.id);
+    const next = arrayMove(completed, oldIndex, newIndex);
+    setSortedCompleted(next);
+    reorderItems(next.map((item, idx) => ({ id: item.id, sortOrder: idx + 1 })));
+  }
 
   const total = completed.reduce(
     (s, i) => s + (i.result?.suggestedBuyPrice ?? 0),
@@ -153,11 +193,22 @@ export default function ListPage() {
                   label={`完了 (${completed.length})`}
                   color="var(--success)"
                 />
-                <div className="flex flex-col gap-2">
-                  {completed.map((item) => (
-                    <CompletedCard key={item.id} item={item} />
-                  ))}
-                </div>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={completed.map((i) => i.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="flex flex-col gap-2">
+                      {completed.map((item) => (
+                        <SortableCompletedCard key={item.id} item={item} />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               </section>
             )}
 
@@ -326,7 +377,23 @@ function QueuedCard({ item }: { item: ListItem }) {
   );
 }
 
-function CompletedCard({ item }: { item: ListItem }) {
+function SortableCompletedCard({ item }: { item: ListItem }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : undefined,
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      <CompletedCard item={item} dragHandleProps={{ ...attributes, ...listeners }} />
+    </div>
+  );
+}
+
+function CompletedCard({ item, dragHandleProps }: { item: ListItem; dragHandleProps?: React.HTMLAttributes<HTMLElement> }) {
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState(item.notes ?? "");
   const [saving, setSaving] = useState(false);
@@ -357,7 +424,16 @@ function CompletedCard({ item }: { item: ListItem }) {
 
   return (
     <article className="bg-surface border border-border rounded-xl overflow-hidden">
-      <Link href={detailHref} className="block p-3 tap-scale hover:border-primary/40 transition-colors">
+      <div className="flex items-stretch">
+        {/* ドラッグハンドル */}
+        <div
+          {...dragHandleProps}
+          className="flex items-center justify-center px-2 text-muted cursor-grab active:cursor-grabbing touch-none shrink-0"
+          aria-label="並び替え"
+        >
+          <GripVertical size={16} />
+        </div>
+        <Link href={detailHref} className="block p-3 flex-1 min-w-0 tap-scale hover:border-primary/40 transition-colors">
         <div className="flex items-start justify-between gap-2 mb-1.5">
           <p className="text-sm font-semibold text-foreground line-clamp-1">
             {item.query.keyword}
@@ -386,7 +462,8 @@ function CompletedCard({ item }: { item: ListItem }) {
             {formatYen(r.min)} 〜 {formatYen(r.max)}
           </span>
         </div>
-      </Link>
+        </Link>
+      </div>
 
       {/* メモ表示 */}
       {item.notes && !noteOpen && (

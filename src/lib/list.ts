@@ -15,6 +15,7 @@ import {
   updateListItem,
   deleteListItem as apiDeleteListItem,
   clearListItems,
+  updateItemsSortOrder,
   type AppraisalList,
   type ListItem,
   type ListItemQuery,
@@ -226,6 +227,20 @@ export function useIsInList(keyword: string): boolean {
   return current.items.some((i) => i.query.keyword.trim() === trimmed);
 }
 
+/** 指定キーワードが現在のリストに存在するか + そのアイテムIDを返す */
+export function useIsInListByKeyword(keyword: string | undefined): {
+  isInList: boolean;
+  existingItemId: string | null;
+} {
+  const lists = useAllLists();
+  const currentId = useCurrentListId();
+  const current = lists.find((l) => l.id === currentId) ?? lists[0];
+  if (!current || !keyword) return { isInList: false, existingItemId: null };
+  const trimmed = keyword.trim();
+  const found = current.items.find((i) => i.query.keyword.trim() === trimmed);
+  return { isInList: !!found, existingItemId: found?.id ?? null };
+}
+
 // ============================================================================
 // 公開 API: リスト管理
 // ============================================================================
@@ -351,6 +366,11 @@ export async function removeItem(itemId: string): Promise<void> {
 
 export async function updateItemNotes(itemId: string, notes: string): Promise<void> {
   await updateListItem(itemId, { notes });
+  invalidateAll();
+}
+
+export async function reorderItems(orders: { id: string; sortOrder: number }[]): Promise<void> {
+  await updateItemsSortOrder(orders);
   invalidateAll();
 }
 
