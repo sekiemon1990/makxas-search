@@ -728,32 +728,38 @@ export default async function AdminDashboardPage() {
         </div>
 
         {/* ── ⑤ 空振り検索テーブル ── */}
-        {recentZeroResults.length > 0 && (
-          <div className="bg-surface border border-warning/30 rounded-xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-warning/5">
-              <div>
-                <h2 className="text-[13px] font-bold text-warning">空振り検索ログ</h2>
-                <p className="text-xs text-muted mt-0.5">
-                  今月 {agg.zeroResultCount} 件 — 結果が 0 件だった完了検索。キーワードや媒体の見直しに活用してください
-                </p>
-              </div>
+        <div className="bg-surface border border-warning/30 rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-warning/5">
+            <div>
+              <h2 className="text-[13px] font-bold text-warning">空振り検索ログ</h2>
+              <p className="text-xs text-muted mt-0.5">
+                今月 {agg.zeroResultCount} 件 — 結果が 0 件だった完了検索。キーワードや媒体の見直しに活用してください
+              </p>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-[13px] border-collapse">
-                <thead>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px] border-collapse">
+              <thead>
+                <tr>
+                  {["日時", "ユーザー", "キーワード", "媒体"].map((h) => (
+                    <th
+                      key={h}
+                      className="px-4 py-2.5 text-[11px] font-semibold text-muted uppercase tracking-wider bg-surface-2 border-b border-border whitespace-nowrap text-left"
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {recentZeroResults.length === 0 ? (
                   <tr>
-                    {["日時", "ユーザー", "キーワード", "媒体"].map((h) => (
-                      <th
-                        key={h}
-                        className="px-4 py-2.5 text-[11px] font-semibold text-muted uppercase tracking-wider bg-surface-2 border-b border-border whitespace-nowrap text-left"
-                      >
-                        {h}
-                      </th>
-                    ))}
+                    <td colSpan={4} className="px-4 py-8 text-center text-success text-sm">
+                      ✓ 今月の空振り検索はありません
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {recentZeroResults.map((s) => (
+                ) : (
+                  recentZeroResults.map((s) => (
                     <tr
                       key={s.id}
                       className="hover:bg-surface-2 border-b border-border last:border-0"
@@ -771,43 +777,49 @@ export default async function AdminDashboardPage() {
                         {s.sources.map((src) => SOURCE_LABEL[src] ?? src).join(" / ")}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
 
         {/* ── エラーログ ── */}
-        {recentErrors.length > 0 && (
-          <div className="bg-surface border border-danger/30 rounded-xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-danger/5">
-              <div>
-                <h2 className="text-[13px] font-bold text-danger">エラーログ</h2>
-                <p className="text-xs text-muted mt-0.5">
-                  直近 30 日 / {recentErrors.length} 件
-                  &nbsp;—&nbsp;「修正依頼」を Claude Code へ、「ヒアリング」を担当ユーザーへ送付できます
-                </p>
-              </div>
+        <div className="bg-surface border border-danger/30 rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-danger/5">
+            <div>
+              <h2 className="text-[13px] font-bold text-danger">エラーログ</h2>
+              <p className="text-xs text-muted mt-0.5">
+                直近 30 日 / {recentErrors.length} 件
+                {recentErrors.length > 0 && <>&nbsp;—&nbsp;「修正依頼」を Claude Code へ、「ヒアリング」を担当ユーザーへ送付できます</>}
+              </p>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-[13px] border-collapse">
-                <thead>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px] border-collapse">
+              <thead>
+                <tr>
+                  {["日時", "担当ユーザー", "キーワード", "媒体", "エンジニア修正依頼", "ユーザーヒアリング"].map(
+                    (h, i) => (
+                      <th
+                        key={h}
+                        className={`px-4 py-2.5 text-[11px] font-semibold text-muted uppercase tracking-wider bg-surface-2 border-b border-border whitespace-nowrap ${i >= 4 ? "text-right" : "text-left"}`}
+                      >
+                        {h}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {recentErrors.length === 0 ? (
                   <tr>
-                    {["日時", "担当ユーザー", "キーワード", "媒体", "エンジニア修正依頼", "ユーザーヒアリング"].map(
-                      (h, i) => (
-                        <th
-                          key={h}
-                          className={`px-4 py-2.5 text-[11px] font-semibold text-muted uppercase tracking-wider bg-surface-2 border-b border-border whitespace-nowrap ${i >= 4 ? "text-right" : "text-left"}`}
-                        >
-                          {h}
-                        </th>
-                      ),
-                    )}
+                    <td colSpan={6} className="px-4 py-8 text-center text-success text-sm">
+                      ✓ 直近 30 日間にエラーは発生していません
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {recentErrors.map((s) => {
+                ) : (
+                  recentErrors.map((s) => {
                     const email = userEmailMap[s.user_id] ?? "（ユーザー不明）";
                     const isKnownUser = !!userEmailMap[s.user_id];
                     const fixPrompt = buildFixPrompt(s, email);
@@ -849,12 +861,12 @@ export default async function AdminDashboardPage() {
                         </td>
                       </tr>
                     );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
 
         {/* ── 詳細ページ閲覧ログ ── */}
         <div className="bg-surface border border-border rounded-xl overflow-hidden">
