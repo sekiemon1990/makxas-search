@@ -31,6 +31,14 @@ A = git・短時間 / B = dev server / C = log 監視 / D = スクラッチ
 - dev port: 3000
 - 旧名: claude-code (rename 済、GitHub redirect で旧 URL も動作)
 
+## 外部サービス直リンク
+| サービス | URL |
+|---|---|
+| Supabase SQL Editor | https://supabase.com/dashboard/project/vovdcefklafyiqiqtdsy/sql/new |
+| Supabase テーブルエディタ | https://supabase.com/dashboard/project/vovdcefklafyiqiqtdsy/editor |
+| Vercel ダッシュボード | https://vercel.com/sekiemon1990s-projects/makxas-search |
+| GitHub リポジトリ | https://github.com/sekiemon1990/makxas-search |
+
 ## コスト
 **全 session 必読。新ツール追加時は必ず更新すること。**
 
