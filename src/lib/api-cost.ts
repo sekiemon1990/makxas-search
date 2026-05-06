@@ -18,7 +18,8 @@ export type ApiEndpoint =
   | "ai-advisor"
   | "detect-accessories"
   | "keyword-suggest"
-  | "refine-keywords";
+  | "refine-keywords"
+  | "vision-identify";
 
 interface TokenUsage {
   input_tokens?: number | null;

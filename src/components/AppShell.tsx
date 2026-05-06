@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, History, Settings as SettingsIcon, ListChecks } from "lucide-react";
+import { Search, History, Settings as SettingsIcon, ListChecks, Camera } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { ListBar } from "./ListBar";
 
@@ -71,6 +71,12 @@ export function AppShell({
                 matchPrefix="/history"
               />
               <TopNavItem
+                href="/session"
+                icon={<Camera size={16} />}
+                label="撮影査定"
+                matchPrefix="/session"
+              />
+              <TopNavItem
                 href="/settings"
                 icon={<SettingsIcon size={16} />}
                 label="設定"
@@ -93,7 +99,7 @@ export function AppShell({
 
       {showNav && (
         <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-surface border-t border-border">
-          <div className="mx-auto max-w-md w-full grid grid-cols-4">
+          <div className="mx-auto max-w-md w-full grid grid-cols-5">
             <NavItem
               href="/search"
               icon={<Search size={20} />}
@@ -105,6 +111,12 @@ export function AppShell({
               icon={<ListChecks size={20} />}
               label="リスト"
               matchPrefix="/list"
+            />
+            <NavItem
+              href="/session"
+              icon={<Camera size={22} />}
+              label="撮影査定"
+              matchPrefix="/session"
             />
             <NavItem
               href="/history"
