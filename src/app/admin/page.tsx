@@ -1,5 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/service";
 import { CopyPromptButton } from "@/components/CopyPromptButton";
+import { ArchiveButton, UnarchiveButton } from "./ErrorArchiveButton";
 
 // ──────────────────────────────────────────────
 // 型定義
@@ -14,6 +15,7 @@ type SearchRow = {
   searched_at: string;
   total_count: number | null;
   median: number | null;
+  archived_at: string | null;
 };
 
 type ViewRow = {
@@ -148,7 +150,7 @@ async function fetchDashboardData() {
   // 検索ログ
   const { data: searches } = await service
     .from("searches")
-    .select("id, user_id, keyword, sources, status, searched_at, total_count, median")
+    .select("id, user_id, keyword, sources, status, searched_at, total_count, median, archived_at")
     .gte("searched_at", since30d)
     .order("searched_at", { ascending: false })
     .limit(500);
@@ -374,8 +376,14 @@ export default async function AdminDashboardPage() {
   const agg = aggregate(searches, views);
   const recent200 = searches.slice(0, 200);
 
-  // エラー一覧（直近30件）
-  const recentErrors = searches.filter((s) => s.status === "error").slice(0, 30);
+  // エラー一覧（未アーカイブ・直近30件）
+  const recentErrors = searches
+    .filter((s) => s.status === "error" && !s.archived_at)
+    .slice(0, 30);
+  // アーカイブ済みエラー
+  const archivedErrors = searches
+    .filter((s) => s.status === "error" && !!s.archived_at)
+    .slice(0, 50);
 
   // 空振り一覧（直近20件）
   const recentZeroResults = searches
@@ -790,19 +798,21 @@ export default async function AdminDashboardPage() {
             <div>
               <h2 className="text-[13px] font-bold text-danger">エラーログ</h2>
               <p className="text-xs text-muted mt-0.5">
-                直近 30 日 / {recentErrors.length} 件
+                直近 30 日 / 未対処 {recentErrors.length} 件
+                {archivedErrors.length > 0 && <> / 対処済み {archivedErrors.length} 件</>}
                 {recentErrors.length > 0 && <>&nbsp;—&nbsp;「修正依頼」を Claude Code へ、「ヒアリング」を担当ユーザーへ送付できます</>}
               </p>
             </div>
           </div>
+          {/* 未対処エラー */}
           <div className="overflow-x-auto">
             <table className="w-full text-[13px] border-collapse">
               <thead>
                 <tr>
-                  {["日時", "担当ユーザー", "キーワード", "媒体", "エンジニア修正依頼", "ユーザーヒアリング"].map(
+                  {["日時", "担当ユーザー", "キーワード", "媒体", "エンジニア修正依頼", "ユーザーヒアリング", ""].map(
                     (h, i) => (
                       <th
-                        key={h}
+                        key={i}
                         className={`px-4 py-2.5 text-[11px] font-semibold text-muted uppercase tracking-wider bg-surface-2 border-b border-border whitespace-nowrap ${i >= 4 ? "text-right" : "text-left"}`}
                       >
                         {h}
@@ -814,8 +824,8 @@ export default async function AdminDashboardPage() {
               <tbody>
                 {recentErrors.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-success text-sm">
-                      ✓ 直近 30 日間にエラーは発生していません
+                    <td colSpan={7} className="px-4 py-8 text-center text-success text-sm">
+                      ✓ 直近 30 日間に未対処のエラーはありません
                     </td>
                   </tr>
                 ) : (
@@ -859,6 +869,9 @@ export default async function AdminDashboardPage() {
                             label={isKnownUser ? "ヒアリングをコピー" : "ヒアリング（要特定）"}
                           />
                         </td>
+                        <td className="px-4 py-3 text-right">
+                          <ArchiveButton searchId={s.id} />
+                        </td>
                       </tr>
                     );
                   })
@@ -866,6 +879,62 @@ export default async function AdminDashboardPage() {
               </tbody>
             </table>
           </div>
+
+          {/* 対処済みエラー（折りたたみ） */}
+          {archivedErrors.length > 0 && (
+            <details className="border-t border-border">
+              <summary className="px-5 py-3 text-[12px] text-muted cursor-pointer hover:bg-surface-2 select-none list-none flex items-center gap-2">
+                <span className="text-success font-semibold">✓ 対処済み {archivedErrors.length} 件</span>
+                <span>（クリックで表示）</span>
+              </summary>
+              <div className="overflow-x-auto border-t border-border">
+                <table className="w-full text-[13px] border-collapse">
+                  <thead>
+                    <tr>
+                      {["日時", "担当ユーザー", "キーワード", "媒体", "対処日時", ""].map((h, i) => (
+                        <th
+                          key={i}
+                          className="px-4 py-2.5 text-[11px] font-semibold text-muted uppercase tracking-wider bg-surface-2 border-b border-border whitespace-nowrap text-left"
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {archivedErrors.map((s) => {
+                      const email = userEmailMap[s.user_id] ?? "（ユーザー不明）";
+                      return (
+                        <tr
+                          key={s.id}
+                          className="hover:bg-surface-2 border-b border-border last:border-0 opacity-60"
+                        >
+                          <td className="px-4 py-3 text-muted whitespace-nowrap">
+                            {fmtDate(s.searched_at)}
+                          </td>
+                          <td className="px-4 py-3 text-foreground max-w-[140px] truncate">
+                            {email.split("@")[0]}
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-foreground max-w-[180px] truncate">
+                            {s.keyword}
+                          </td>
+                          <td className="px-4 py-3 text-muted whitespace-nowrap">
+                            {s.sources.map((src) => SOURCE_LABEL[src] ?? src).join(" / ")}
+                          </td>
+                          <td className="px-4 py-3 text-muted whitespace-nowrap text-[11px]">
+                            {s.archived_at ? fmtDate(s.archived_at) : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <UnarchiveButton searchId={s.id} />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          )}
         </div>
 
         {/* ── 詳細ページ閲覧ログ ── */}
