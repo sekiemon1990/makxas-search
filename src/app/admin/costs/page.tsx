@@ -198,25 +198,33 @@ export default async function AdminCostsPage() {
               jpy: fmtJpy(agg.todayCost),
               usd: fmtUsd(agg.todayCost),
               sub: `API呼出 ${agg.todayCallCount} 回`,
+              costUsd: agg.todayCost,
             },
             {
               label: "今月のコスト",
               jpy: fmtJpy(agg.monthCost),
               usd: fmtUsd(agg.monthCost),
               sub: `API呼出 ${agg.monthCallCount} 回`,
+              costUsd: agg.monthCost,
             },
             {
               label: "直近 30 日 累計",
               jpy: fmtJpy(agg.totalCost),
               usd: fmtUsd(agg.totalCost),
               sub: `API呼出 ${logs.length} 回`,
+              costUsd: agg.totalCost,
             },
-          ].map(({ label, jpy, usd, sub }) => (
+          ].map(({ label, jpy, usd, sub, costUsd }) => (
             <div key={label} className="bg-surface border border-border rounded-xl px-6 py-5">
               <div className="text-xs text-muted mb-1.5">{label}</div>
               <div className="text-3xl font-bold text-foreground leading-none">{jpy}</div>
               <div className="text-xs text-muted mt-1">{usd}</div>
               <div className="text-xs text-muted mt-1.5">{sub}</div>
+              {costUsd === 0 && (
+                <p className="text-xs text-muted mt-2">
+                  AI アドバイス・キーワード提案などの機能を使い始めると、ここに記録されます
+                </p>
+              )}
             </div>
           ))}
         </div>

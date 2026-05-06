@@ -416,6 +416,13 @@ function SearchHistoryCard({
             fill={isFavorite ? "currentColor" : "none"}
           />
         </button>
+        <Link
+          href={href}
+          className="p-1.5 rounded-md hover:bg-surface-2 active:bg-surface-2"
+          aria-label="再検索"
+        >
+          <SearchIcon size={14} className="text-primary" />
+        </Link>
         <button
           type="button"
           onClick={onDelete}
