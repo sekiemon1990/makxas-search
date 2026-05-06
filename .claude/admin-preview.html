@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理画面 プレビュー</title>
+<style>
+  :root {
+    --background: #f7f7f8;
+    --foreground: #0f1115;
+    --surface: #ffffff;
+    --surface-2: #f1f3f6;
+    --border: #e3e6ec;
+    --muted: #5b6370;
+    --primary: #1f6feb;
+    --success: #16a34a;
+    --danger: #dc2626;
+    --info: #0ea5e9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: #0b0d12;
+      --foreground: #e7eaf0;
+      --surface: #14171f;
+      --surface-2: #1c2029;
+      --border: #2a2f3a;
+      --muted: #9aa3b3;
+      --primary: #4f8dff;
+      --success: #22c55e;
+      --danger: #f87171;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 13px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  .layout { display: flex; min-height: 100vh; }
+
+  /* ── サイドバー ── */
+  .sidebar {
+    width: 220px; flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    position: fixed; top: 0; left: 0; bottom: 0;
+  }
+  .sidebar-logo { padding: 20px 20px 16px; border-bottom: 1px solid var(--border); }
+  .sidebar-logo-text { font-size: 15px; font-weight: 800; color: var(--primary); letter-spacing: -0.3px; }
+  .sidebar-logo-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .sidebar-nav { padding: 12px 8px; flex: 1; }
+  .nav-section-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.6px;
+    color: var(--muted); text-transform: uppercase;
+    padding: 8px 12px 4px; margin-top: 8px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-radius: 8px;
+    font-size: 13px; color: var(--muted);
+    cursor: pointer; margin-bottom: 2px;
+    text-decoration: none;
+  }
+  .nav-item.active { background: rgba(31,111,235,0.1); color: var(--primary); font-weight: 600; }
+  .nav-item:hover:not(.active) { background: var(--surface-2); }
+  .nav-item .badge-new {
+    margin-left: auto;
+    font-size: 9px; font-weight: 700;
+    background: var(--primary); color: white;
+    padding: 1px 5px; border-radius: 20px;
+  }
+  .permission-note {
+    font-size: 10px; color: var(--muted);
+    padding: 4px 12px 8px;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .sidebar-footer {
+    padding: 12px 20px; border-top: 1px solid var(--border);
+    font-size: 11px; color: var(--muted);
+  }
+  .sidebar-footer strong { display: block; color: var(--foreground); margin-bottom: 2px; font-size: 12px; }
+  .role-badge {
+    display: inline-block; margin-top: 4px;
+    font-size: 10px; font-weight: 600;
+    background: rgba(31,111,235,0.1); color: var(--primary);
+    padding: 1px 6px; border-radius: 4px;
+  }
+
+  /* ── メイン ── */
+  .main { margin-left: 220px; flex: 1; display: flex; flex-direction: column; }
+  .topbar {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 32px; height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .topbar-title { font-size: 16px; font-weight: 700; }
+  .topbar-meta { font-size: 12px; color: var(--muted); }
+  .content { padding: 28px 32px; }
+
+  /* ── カード ── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .card-title {
+    font-size: 11px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 16px; display: flex; align-items: center; gap: 6px;
+  }
+
+  /* ── サマリーカード（検索中心）── */
+  .summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; }
+  .summary-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .summary-value { font-size: 28px; font-weight: 700; color: var(--foreground); line-height: 1; }
+  .summary-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .summary-delta { font-size: 11px; margin-top: 6px; }
+  .delta-up { color: var(--success); }
+  .delta-dn { color: var(--danger); }
+
+  /* ── グラフ ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  .chart-area { display: flex; align-items: flex-end; gap: 6px; height: 100px; margin-bottom: 4px; }
+  .bar-wrap { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; flex: 1; height: 100%; }
+  .bar { width: 100%; background: rgba(31,111,235,0.65); border-radius: 4px 4px 0 0; }
+  .bar:hover { opacity: 0.8; }
+  .bar-label { font-size: 10px; color: var(--muted); margin-top: 6px; white-space: nowrap; }
+
+  /* ── テーブル ── */
+  .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .table-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .table-header-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .table-header-sub { font-size: 12px; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; padding: 10px 16px;
+    font-size: 11px; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.4px;
+    background: var(--surface-2); border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  th:last-child { text-align: right; }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  td:last-child { text-align: right; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface-2); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: rgba(22,163,74,0.12); color: #16a34a; }
+  .badge-blue  { background: rgba(14,165,233,0.12); color: #0ea5e9; }
+  .badge-red   { background: rgba(220,38,38,0.12); color: #dc2626; }
+  .muted { color: var(--muted); }
+  .keyword-cell { font-weight: 600; }
+
+  /* ── コストページ ── */
+  .cost-summary-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+  .cost-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; }
+  .cost-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .cost-value { font-size: 28px; font-weight: 700; color: var(--foreground); }
+  .cost-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .breakdown-item { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .breakdown-item:last-child { border-bottom: none; }
+  .breakdown-name { width: 160px; flex-shrink: 0; color: var(--foreground); }
+  .breakdown-bar-wrap { flex: 1; margin: 0 16px; height: 6px; background: var(--border); border-radius: 3px; }
+  .breakdown-bar { height: 100%; background: rgba(31,111,235,0.55); border-radius: 3px; }
+  .breakdown-val { font-weight: 600; color: var(--foreground); min-width: 60px; text-align: right; }
+  .breakdown-sub { font-size: 11px; color: var(--muted); min-width: 55px; text-align: right; margin-left: 8px; }
+
+  /* ── タブ切り替え ── */
+  .tabs { display: flex; gap: 0; margin-bottom: 0; border-bottom: 1px solid var(--border); }
+  .tab {
+    padding: 10px 20px; font-size: 13px; font-weight: 500;
+    color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  .tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+
+  @media (prefers-color-scheme: dark) {
+    .bar { background: rgba(79,141,255,0.65); }
+    .breakdown-bar { background: rgba(79,141,255,0.55); }
+    .badge-green { color: #22c55e; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ── サイドバー ── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-text">makxas search</div>
+      <div class="sidebar-logo-sub">管理コンソール</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">メイン</div>
+      <a class="nav-item" href="#" onclick="showPage('dashboard'); return false;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        ダッシュボード
+      </a>
+      <a class="nav-item" href="#" onclick="return false;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        検索アクティビティ
+      </a>
+
+      <div class="nav-section-label" style="margin-top:16px;">ユーザー</div>
+      <a class="nav-item" href="#" onclick="return false;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        ユーザー一覧
+      </a>
+      <!-- 権限ありのみ表示（オーナーのみ） -->
+      <a class="nav-item active" href="#" onclick="showPage('costs'); return false;" id="cost-menu-item">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        コスト詳細
+      </a>
+      <div class="permission-note" id="cost-permission-note">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        オーナー権限のみ表示
+      </div>
+
+      <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border);">
+        <a class="nav-item" href="#" onclick="return false;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          検索アプリへ戻る
+        </a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <strong>ginza.repearl</strong>
+      ginza.repearl@gmail.com
+      <div class="role-badge">オーナー</div>
+    </div>
+  </aside>
+
+  <!-- ── メイン ── -->
+  <div class="main">
+
+    <!-- ダッシュボード -->
+    <div id="page-dashboard" style="display:none;">
+      <div class="topbar">
+        <div class="topbar-title">ダッシュボード</div>
+        <div class="topbar-meta">2026/05/04 14:35 現在</div>
+      </div>
+      <div class="content">
+
+        <!-- サマリー（検索中心） -->
+        <div class="summary-row">
+          <div class="summary-card">
+            <div class="summary-label">今日の検索回数</div>
+            <div class="summary-value">47</div>
+            <div class="summary-sub delta-up">▲ 12件 昨日比</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">今月の検索回数</div>
+            <div class="summary-value">312</div>
+            <div class="summary-sub">アクティブユーザー 3名</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">今日のエラー率</div>
+            <div class="summary-value">4.3%</div>
+            <div class="summary-sub delta-dn">▲ 1.2pt 昨日比</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">最多検索ユーザー</div>
+            <div class="summary-value" style="font-size:20px;">ginza.repearl</div>
+            <div class="summary-sub">28 件 / 今日</div>
+          </div>
+        </div>
+
+        <!-- 検索数グラフ + 媒体別 -->
+        <div class="two-col">
+          <div class="card">
+            <div class="card-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              日次検索回数（直近 14 日）
+            </div>
+            <div class="chart-area">
+              <div class="bar-wrap"><div class="bar" style="height:28px"></div><span class="bar-label">4/21</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:42px"></div><span class="bar-label">4/22</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:15px"></div><span class="bar-label">4/23</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:55px"></div><span class="bar-label">4/24</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:78px"></div><span class="bar-label">4/25</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:60px"></div><span class="bar-label">4/26</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:30px"></div><span class="bar-label">4/27</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:65px"></div><span class="bar-label">4/28</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:48px"></div><span class="bar-label">4/29</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:82px"></div><span class="bar-label">4/30</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:100px"></div><span class="bar-label">5/01</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:70px"></div><span class="bar-label">5/02</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:55px"></div><span class="bar-label">5/03</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:47px"></div><span class="bar-label">5/04</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              媒体別利用率（今月）
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-name">ヤフオク</span>
+              <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:72%"></div></div>
+              <span class="breakdown-val">224件</span>
+              <span class="breakdown-sub">72%</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-name">メルカリ</span>
+              <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:21%"></div></div>
+              <span class="breakdown-val">65件</span>
+              <span class="breakdown-sub">21%</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-name">ジモティー</span>
+              <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:7%"></div></div>
+              <span class="breakdown-val">23件</span>
+              <span class="breakdown-sub">7%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 検索アクティビティテーブル -->
+        <div class="table-card">
+          <div class="table-header">
+            <div class="table-header-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              検索アクティビティ
+            </div>
+            <div class="table-header-sub">直近 200 件</div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>日時</th>
+                <th>ユーザー</th>
+                <th>キーワード</th>
+                <th>媒体</th>
+                <th>期間 / 条件</th>
+                <th>状態</th>
+                <th>件数</th>
+                <th>中央値</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="muted" style="white-space:nowrap">05/04 14:32</td><td>ginza.repearl</td><td class="keyword-cell">iPhone 15 Pro 256GB</td><td class="muted">ヤフオク</td><td class="muted">30日 / 未使用</td><td><span class="badge badge-green">完了</span></td><td class="muted">148</td><td style="font-weight:600">¥98,000</td></tr>
+              <tr><td class="muted" style="white-space:nowrap">05/04 13:51</td><td>staff01</td><td class="keyword-cell">ダイソン V12</td><td class="muted">メルカリ</td><td class="muted">90日 / 良い</td><td><span class="badge badge-green">完了</span></td><td class="muted">83</td><td style="font-weight:600">¥32,500</td></tr>
+              <tr><td class="muted" style="white-space:nowrap">05/04 13:12</td><td>ginza.repearl</td><td class="keyword-cell">ニンテンドースイッチ</td><td class="muted">ヤフオク / メルカリ</td><td class="muted">30日 / 全て</td><td><span class="badge badge-green">完了</span></td><td class="muted">312</td><td style="font-weight:600">¥18,200</td></tr>
+              <tr><td class="muted" style="white-space:nowrap">05/04 11:40</td><td>staff02</td><td class="keyword-cell">MacBook Air M2</td><td class="muted">ヤフオク</td><td class="muted">90日 / 良い</td><td><span class="badge badge-blue">実行中</span></td><td class="muted">—</td><td class="muted">—</td></tr>
+              <tr><td class="muted" style="white-space:nowrap">05/04 10:05</td><td>staff01</td><td class="keyword-cell">ソニー α7IV</td><td class="muted">ヤフオク / メルカリ</td><td class="muted">30日 / 全て</td><td><span class="badge badge-red">エラー</span></td><td class="muted">—</td><td class="muted">—</td></tr>
+              <tr><td class="muted" style="white-space:nowrap">05/03 18:22</td><td>ginza.repearl</td><td class="keyword-cell">iPad Air 第5世代</td><td class="muted">ヤフオク</td><td class="muted">30日 / 未使用</td><td><span class="badge badge-green">完了</span></td><td class="muted">97</td><td style="font-weight:600">¥52,000</td></tr>
+              <tr><td class="muted" style="white-space:nowrap">05/03 16:44</td><td>staff01</td><td class="keyword-cell">ルンバ j7+</td><td class="muted">メルカリ / ジモティー</td><td class="muted">90日 / 良い</td><td><span class="badge badge-green">完了</span></td><td class="muted">61</td><td style="font-weight:600">¥28,800</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- コスト詳細ページ -->
+    <div id="page-costs" style="display:none;">
+      <div class="topbar">
+        <div class="topbar-title">コスト詳細</div>
+        <div class="topbar-meta">レート: ¥155/USD</div>
+      </div>
+      <div class="content">
+
+        <!-- コストサマリー -->
+        <div class="cost-summary-row">
+          <div class="cost-card">
+            <div class="cost-label">今日のコスト</div>
+            <div class="cost-value">¥3</div>
+            <div class="cost-sub">$0.0182</div>
+          </div>
+          <div class="cost-card">
+            <div class="cost-label">今月のコスト</div>
+            <div class="cost-value">¥199</div>
+            <div class="cost-sub">$1.2840</div>
+          </div>
+          <div class="cost-card">
+            <div class="cost-label">直近 30 日のコスト</div>
+            <div class="cost-value">¥583</div>
+            <div class="cost-sub">$3.7610</div>
+          </div>
+        </div>
+
+        <!-- グラフ + 機能別 -->
+        <div class="two-col">
+          <div class="card">
+            <div class="card-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              日次コスト（直近 14 日）
+            </div>
+            <div class="chart-area">
+              <div class="bar-wrap"><div class="bar" style="height:10px"></div><span class="bar-label">4/21</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:19px"></div><span class="bar-label">4/22</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:6px"></div><span class="bar-label">4/23</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:35px"></div><span class="bar-label">4/24</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:51px"></div><span class="bar-label">4/25</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:29px"></div><span class="bar-label">4/26</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:13px"></div><span class="bar-label">4/27</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:38px"></div><span class="bar-label">4/28</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:22px"></div><span class="bar-label">4/29</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:45px"></div><span class="bar-label">4/30</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:100px"></div><span class="bar-label">5/01</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:50px"></div><span class="bar-label">5/02</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:40px"></div><span class="bar-label">5/03</span></div>
+              <div class="bar-wrap"><div class="bar" style="height:12px"></div><span class="bar-label">5/04</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              機能別コスト（直近 30 日）
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-name">AI 査定</span>
+              <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:56%"></div></div>
+              <span class="breakdown-val">¥332</span>
+              <span class="breakdown-sub">$2.143</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-name">絞り込み提案</span>
+              <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:32%"></div></div>
+              <span class="breakdown-val">¥188</span>
+              <span class="breakdown-sub">$1.210</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-name">付属品検出</span>
+              <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:7%"></div></div>
+              <span class="breakdown-val">¥44</span>
+              <span class="breakdown-sub">$0.284</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-name">キーワード候補</span>
+              <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:3%"></div></div>
+              <span class="breakdown-val">¥19</span>
+              <span class="breakdown-sub">$0.124</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- モデル別 + ユーザー別 -->
+        <div class="two-col">
+          <div class="card">
+            <div class="card-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              モデル別コスト（直近 30 日）
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-name">claude-opus-4-7</span>
+              <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:89%"></div></div>
+              <span class="breakdown-val">¥520</span>
+              <span class="breakdown-sub">$3.353</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-name">claude-haiku-4-5</span>
+              <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:11%"></div></div>
+              <span class="breakdown-val">¥63</span>
+              <span class="breakdown-sub">$0.408</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+              ユーザー別コスト（直近 30 日）
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-name">ginza.repearl</span>
+              <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:65%"></div></div>
+              <span class="breakdown-val">¥374</span>
+              <span class="breakdown-sub">$2.412</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-name">staff01</span>
+              <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:24%"></div></div>
+              <span class="breakdown-val">¥138</span>
+              <span class="breakdown-sub">$0.893</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-name">staff02</span>
+              <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:12%"></div></div>
+              <span class="breakdown-val">¥71</span>
+              <span class="breakdown-sub">$0.456</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<!-- 権限切り替えデモ UI -->
+<div style="position:fixed;top:12px;right:16px;z-index:999;display:flex;gap:8px;align-items:center;">
+  <span style="font-size:11px;color:var(--muted);">表示切替（デモ）:</span>
+  <button onclick="setRole('owner')" id="btn-owner"
+    style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--primary);background:var(--primary);color:white;cursor:pointer;">
+    オーナー
+  </button>
+  <button onclick="setRole('staff')" id="btn-staff"
+    style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--foreground);cursor:pointer;">
+    スタッフ
+  </button>
+</div>
+
+<script>
+  function showPage(page) {
+    document.getElementById('page-dashboard').style.display = page === 'dashboard' ? 'block' : 'none';
+    document.getElementById('page-costs').style.display = page === 'costs' ? 'block' : 'none';
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    if (page === 'dashboard') document.querySelectorAll('.nav-item')[0].classList.add('active');
+    if (page === 'costs') document.getElementById('cost-menu-item').classList.add('active');
+  }
+
+  function setRole(role) {
+    const costItem = document.getElementById('cost-menu-item');
+    const costNote = document.getElementById('cost-permission-note');
+    const footer = document.querySelector('.sidebar-footer');
+    if (role === 'owner') {
+      costItem.style.display = '';
+      costNote.style.display = '';
+      footer.innerHTML = '<strong>ginza.repearl</strong>ginza.repearl@gmail.com<div class="role-badge">オーナー</div>';
+      document.getElementById('btn-owner').style.background = 'var(--primary)';
+      document.getElementById('btn-owner').style.color = 'white';
+      document.getElementById('btn-staff').style.background = 'var(--surface)';
+      document.getElementById('btn-staff').style.color = 'var(--foreground)';
+    } else {
+      costItem.style.display = 'none';
+      costNote.style.display = 'none';
+      footer.innerHTML = '<strong>staff01</strong>staff01@makxas.com<div class="role-badge" style="background:rgba(91,99,112,0.15);color:var(--muted)">スタッフ</div>';
+      document.getElementById('btn-staff').style.background = 'var(--primary)';
+      document.getElementById('btn-staff').style.color = 'white';
+      document.getElementById('btn-owner').style.background = 'var(--surface)';
+      document.getElementById('btn-owner').style.color = 'var(--foreground)';
+      showPage('dashboard');
+    }
+  }
+
+  // 初期表示
+  showPage('costs');
+</script>
+</body>
+</html>
