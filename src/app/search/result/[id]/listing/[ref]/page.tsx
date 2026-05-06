@@ -63,6 +63,9 @@ function DetailInner({ id, listingRefParam }: { id: string; listingRefParam: str
   const lid = parsed?.lid ?? "";
   const fromKeyword = params.get("keyword") ?? undefined;
   const fromExcludes = params.get("excludes") ?? "";
+  const resultRank = params.get("rank") ? Number(params.get("rank")) : undefined;
+  // id は検索ID（URLパスに含まれる）。"list_xxx" 形式はリストページ経由なので除外
+  const searchId = id && !id.startsWith("list_") ? id : undefined;
 
   const yahooQuery = useQuery({
     queryKey: ["scrape_yahoo", fromKeyword ?? "", fromExcludes],
@@ -281,12 +284,18 @@ function DetailInner({ id, listingRefParam }: { id: string; listingRefParam: str
       endedAt: baseListing.endedAt,
       condition: baseListing.condition,
       fromKeyword,
+      searchId,
+      resultRank,
+      fromPage: searchId ? "search_result" : id.startsWith("list_") ? "list" : "direct",
     });
   }, [
     baseListing,
     listingRef,
     source,
     fromKeyword,
+    id,
+    resultRank,
+    searchId,
   ]);
 
   // 全 hooks を呼んだあとで早期リターン

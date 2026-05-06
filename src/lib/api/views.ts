@@ -13,6 +13,12 @@ export type ListingViewSnapshot = {
   condition?: string;
   fromKeyword?: string;
   viewedAt: string;
+  /** 起点となった検索のID */
+  searchId?: string;
+  /** 検索結果一覧での表示順位（1始まり） */
+  resultRank?: number;
+  /** どこから遷移してきたか */
+  fromPage?: "search_result" | "history" | "pin" | "share" | "direct" | "list";
 };
 
 export async function recordListingView(
@@ -44,6 +50,9 @@ export async function recordListingView(
     ended_at: snapshot.endedAt,
     condition: snapshot.condition ?? null,
     from_keyword: snapshot.fromKeyword ?? null,
+    search_id: snapshot.searchId ?? null,
+    result_rank: snapshot.resultRank ?? null,
+    from_page: snapshot.fromPage ?? "direct",
   });
   if (insertError) console.error("[views] insert error:", insertError);
 }
@@ -66,5 +75,8 @@ export async function fetchListingViews(): Promise<ListingViewSnapshot[]> {
     condition: row.condition ?? undefined,
     fromKeyword: row.from_keyword ?? undefined,
     viewedAt: row.viewed_at,
+    searchId: row.search_id ?? undefined,
+    resultRank: row.result_rank ?? undefined,
+    fromPage: row.from_page ?? undefined,
   }));
 }

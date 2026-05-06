@@ -1205,11 +1205,11 @@ function ResultInner({ resultId }: { resultId: string }) {
                 : "flex flex-col gap-2 md:grid md:grid-cols-2 lg:grid-cols-3"
             }
           >
-            {visibleListings.map((l) => (
+            {visibleListings.map((l, idx) => (
               <ListingCard
                 key={`${l.source}-${l.id}`}
                 listing={l}
-                detailHref={`/search/result/${resultId}/listing/${l.source}-${l.id}?${queryStr}`}
+                detailHref={`/search/result/${resultId}/listing/${l.source}-${l.id}?${queryStr}&rank=${idx + 1}`}
                 onLightbox={(src) => setLightbox({ src })}
                 onMemoOpen={() => setMemoModal(l)}
                 compact={compact}
