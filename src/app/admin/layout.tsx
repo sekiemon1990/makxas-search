@@ -17,23 +17,13 @@ export default async function AdminLayout({
     data: { user },
   } = await supabase.auth.getUser();
 
-  // 管理者チェック
-  const adminEmails = (process.env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((e) => e.trim())
-    .filter(Boolean);
-
-  if (!user || !adminEmails.includes(user.email ?? "")) {
+  // プレビュー用: ログイン済みなら誰でもアクセス可 (本番では ADMIN_EMAILS チェックに戻す)
+  if (!user) {
     redirect("/search");
   }
 
-  // コスト閲覧権限チェック
-  const costViewerEmails = (process.env.COST_VIEWER_EMAILS ?? "")
-    .split(",")
-    .map((e) => e.trim())
-    .filter(Boolean);
-
-  const hasCostAccess = costViewerEmails.includes(user.email ?? "");
+  // コスト閲覧権限チェック (プレビューでは全員に開放)
+  const hasCostAccess = true;
 
   return (
     <div className="flex min-h-screen bg-background">

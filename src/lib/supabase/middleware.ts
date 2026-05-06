@@ -52,17 +52,11 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // 管理画面 (/admin) は管理者メールアドレスのみアクセス可
-  if (path.startsWith("/admin")) {
-    const adminEmails = (process.env.ADMIN_EMAILS ?? "")
-      .split(",")
-      .map((e) => e.trim())
-      .filter(Boolean);
-    if (!user || !adminEmails.includes(user.email ?? "")) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/search";
-      return NextResponse.redirect(url);
-    }
+  // 管理画面 (/admin) はログイン済みユーザーなら誰でもアクセス可 (プレビュー用・本番では要制限)
+  if (path.startsWith("/admin") && !user) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/search";
+    return NextResponse.redirect(url);
   }
 
   return supabaseResponse;
