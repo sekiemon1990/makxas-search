@@ -349,6 +349,11 @@ export async function removeItem(itemId: string): Promise<void> {
   invalidateAll();
 }
 
+export async function updateItemNotes(itemId: string, notes: string): Promise<void> {
+  await updateListItem(itemId, { notes });
+  invalidateAll();
+}
+
 export async function cancelItem(itemId: string): Promise<void> {
   await updateListItem(itemId, { status: "cancelled" });
   invalidateAll();

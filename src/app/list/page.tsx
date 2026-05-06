@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Plus,
   Trash2,
@@ -15,6 +15,7 @@ import {
   Pencil,
   WifiOff,
   Wifi,
+  StickyNote,
 } from "lucide-react";
 import {
   useOfflineQueue,
@@ -33,6 +34,7 @@ import {
   clearCurrentList,
   saveCurrentAndCreateNew,
   addItemToList,
+  updateItemNotes,
   type ListItem,
 } from "@/lib/list";
 import { ListPicker } from "@/components/ListPicker";
@@ -327,6 +329,11 @@ function QueuedCard({ item }: { item: ListItem }) {
 function CompletedCard({ item }: { item: ListItem }) {
   if (!item.result) return null;
   const r = item.result;
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteText, setNoteText] = useState(item.notes ?? "");
+  const [saving, setSaving] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
   const params = new URLSearchParams({
     keyword: item.query.keyword,
     period: item.query.period,
@@ -339,9 +346,17 @@ function CompletedCard({ item }: { item: ListItem }) {
   });
   const detailHref = `/search/result/list_${item.id}?${params.toString()}`;
 
+  async function handleNoteSave() {
+    setSaving(true);
+    await updateItemNotes(item.id, noteText);
+    setSaving(false);
+    setNoteOpen(false);
+    toast({ message: "メモを保存しました" });
+  }
+
   return (
-    <article className="bg-surface border border-border rounded-xl overflow-hidden tap-scale hover:border-primary/40 transition-colors">
-      <Link href={detailHref} className="block p-3">
+    <article className="bg-surface border border-border rounded-xl overflow-hidden">
+      <Link href={detailHref} className="block p-3 tap-scale hover:border-primary/40 transition-colors">
         <div className="flex items-start justify-between gap-2 mb-1.5">
           <p className="text-sm font-semibold text-foreground line-clamp-1">
             {item.query.keyword}
@@ -371,7 +386,50 @@ function CompletedCard({ item }: { item: ListItem }) {
           </span>
         </div>
       </Link>
-      <div className="grid grid-cols-2 border-t border-border">
+
+      {/* メモ表示 */}
+      {item.notes && !noteOpen && (
+        <div
+          className="px-3 py-2 border-t border-border bg-warning/5 flex items-start gap-1.5 cursor-pointer"
+          onClick={() => { setNoteOpen(true); setTimeout(() => textareaRef.current?.focus(), 50); }}
+        >
+          <StickyNote size={12} className="text-warning shrink-0 mt-0.5" />
+          <p className="text-xs text-muted line-clamp-2">{item.notes}</p>
+        </div>
+      )}
+
+      {/* メモ編集エリア */}
+      {noteOpen && (
+        <div className="border-t border-border p-2 bg-surface-2">
+          <textarea
+            ref={textareaRef}
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            placeholder="付属品なし / 液晶割れあり / 動作確認済み など"
+            rows={3}
+            className="w-full text-xs bg-surface border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted resize-none focus:outline-none focus:border-primary"
+          />
+          <div className="flex gap-2 mt-1.5">
+            <button
+              type="button"
+              onClick={handleNoteSave}
+              disabled={saving}
+              className="flex-1 h-8 rounded-lg bg-primary text-white text-xs font-semibold disabled:opacity-50"
+            >
+              {saving ? "保存中…" : "保存"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setNoteOpen(false); setNoteText(item.notes ?? ""); }}
+              className="flex-1 h-8 rounded-lg border border-border text-xs text-muted"
+            >
+              キャンセル
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-3 border-t border-border">
         <Link
           href={detailHref}
           className="flex items-center justify-center gap-1 py-2.5 text-xs font-semibold text-foreground hover:bg-surface-2 border-r border-border"
@@ -379,6 +437,14 @@ function CompletedCard({ item }: { item: ListItem }) {
           詳細
           <ChevronRight size={12} />
         </Link>
+        <button
+          type="button"
+          onClick={() => { setNoteOpen(true); setTimeout(() => textareaRef.current?.focus(), 50); }}
+          className={`flex items-center justify-center gap-1 py-2.5 text-xs border-r border-border hover:bg-surface-2 ${item.notes ? "text-warning" : "text-muted"}`}
+        >
+          <StickyNote size={12} />
+          メモ
+        </button>
         <button
           type="button"
           onClick={() => {
