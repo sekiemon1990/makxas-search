@@ -60,12 +60,15 @@ import { RenameListModal } from "@/components/RenameListModal";
 import { toast } from "@/lib/toast";
 import { ShareButton } from "@/components/share/ShareButton";
 
+type ViewMode = "mixed" | "grouped";
+
 export default function ListPage() {
   const list = useCurrentList();
   const [confirmClear, setConfirmClear] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [sortedCompleted, setSortedCompleted] = useState<ListItem[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>("mixed");
 
   const running = list.items.filter((i) => i.status === "running");
   const queued = list.items.filter((i) => i.status === "queued");
@@ -182,35 +185,76 @@ export default function ListPage() {
               </section>
             )}
 
-            {completed.length > 0 && (
-              <section>
-                <SectionHeader
-                  icon={
-                    <span className="text-success text-base leading-none">
-                      ✓
-                    </span>
-                  }
-                  label={`完了 (${completed.length})`}
-                  color="var(--success)"
-                />
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext
-                    items={completed.map((i) => i.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
+            {completed.length > 0 && (() => {
+              const searchItems = completed.filter(i => i.itemType !== "listing");
+              const listingItems = completed.filter(i => i.itemType === "listing");
+              const hasListingItems = listingItems.length > 0;
+
+              const DraggableList = ({ items }: { items: ListItem[] }) => (
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
                     <div className="flex flex-col gap-2">
-                      {completed.map((item) => (
-                        <SortableCompletedCard key={item.id} item={item} />
-                      ))}
+                      {items.map(item => <SortableCompletedCard key={item.id} item={item} />)}
                     </div>
                   </SortableContext>
                 </DndContext>
-              </section>
-            )}
+              );
+
+              return (
+                <section>
+                  <div className="flex items-center justify-between mb-2">
+                    <SectionHeader
+                      icon={<span className="text-success text-base leading-none">✓</span>}
+                      label={`完了 (${completed.length})`}
+                      color="var(--success)"
+                    />
+                    {hasListingItems && (
+                      <div className="flex rounded-lg border border-border overflow-hidden text-[11px] font-semibold shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setViewMode("mixed")}
+                          className={`px-2.5 py-1.5 ${viewMode === "mixed" ? "bg-primary text-white" : "text-muted hover:bg-surface-2"}`}
+                        >
+                          追加順
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setViewMode("grouped")}
+                          className={`px-2.5 py-1.5 border-l border-border ${viewMode === "grouped" ? "bg-primary text-white" : "text-muted hover:bg-surface-2"}`}
+                        >
+                          種別
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {viewMode === "mixed" || !hasListingItems ? (
+                    <DraggableList items={completed} />
+                  ) : (
+                    <div className="flex flex-col gap-4">
+                      {searchItems.length > 0 && (
+                        <div>
+                          <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-2 px-1">
+                            🔍 相場検索 ({searchItems.length}件)
+                          </p>
+                          <DraggableList items={searchItems} />
+                        </div>
+                      )}
+                      {listingItems.length > 0 && (
+                        <div>
+                          <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-2 px-1">
+                            📄 商品詳細 ({listingItems.length}件)
+                          </p>
+                          <div className="flex flex-col gap-2">
+                            {listingItems.map(item => <SortableCompletedCard key={item.id} item={item} />)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </section>
+              );
+            })()}
 
             {failed.length > 0 && (
               <section>

@@ -302,10 +302,13 @@ async function getOrCreateCurrentListId(): Promise<string | null> {
   return created.id;
 }
 
-export async function addItemToList(query: ListItemQuery): Promise<ListItem | null> {
+export async function addItemToList(
+  query: ListItemQuery,
+  itemType: "search" | "listing" = "search"
+): Promise<ListItem | null> {
   const listId = await getOrCreateCurrentListId();
   if (!listId) return null;
-  const item = await insertListItem(listId, query);
+  const item = await insertListItem(listId, query, undefined, itemType);
   invalidateAll();
   if (item) processQueue();
   return item;
