@@ -327,12 +327,13 @@ function QueuedCard({ item }: { item: ListItem }) {
 }
 
 function CompletedCard({ item }: { item: ListItem }) {
-  if (!item.result) return null;
-  const r = item.result;
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState(item.notes ?? "");
   const [saving, setSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  if (!item.result) return null;
+  const r = item.result;
 
   const params = new URLSearchParams({
     keyword: item.query.keyword,
