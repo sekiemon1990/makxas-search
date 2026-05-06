@@ -19,7 +19,8 @@ export type ApiEndpoint =
   | "detect-accessories"
   | "keyword-suggest"
   | "refine-keywords"
-  | "vision-identify";
+  | "vision-identify"
+  | "bulk-import-image";
 
 interface TokenUsage {
   input_tokens?: number | null;
