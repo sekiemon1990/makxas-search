@@ -45,6 +45,7 @@ export type ListItem = {
   completedAt?: string;
   notes?: string;
   sortOrder?: number;
+  itemType?: "search" | "listing";
 };
 
 export type AppraisalList = {
@@ -93,6 +94,7 @@ type ItemRow = {
   target_complete_at_ms: number | null;
   notes: string | null;
   sort_order: number | null;
+  item_type: string | null;
 };
 
 function rowToItem(row: ItemRow): ListItem {
@@ -128,6 +130,7 @@ function rowToItem(row: ItemRow): ListItem {
   }
   if (row.notes) item.notes = row.notes;
   if (row.sort_order !== null) item.sortOrder = row.sort_order;
+  item.itemType = (row.item_type === "listing") ? "listing" : "search";
   return item;
 }
 
@@ -264,7 +267,8 @@ export async function touchListRow(listId: string): Promise<void> {
 export async function insertListItem(
   listId: string,
   query: ListItemQuery,
-  initial?: { status?: ListItemStatus; result?: ListItemResult }
+  initial?: { status?: ListItemStatus; result?: ListItemResult },
+  itemType: "search" | "listing" = "search"
 ): Promise<ListItem | null> {
   const supabase = createClient();
   const status = initial?.status ?? "queued";
@@ -287,6 +291,7 @@ export async function insertListItem(
       total_count: result?.count ?? null,
       suggested_buy_price: result?.suggestedBuyPrice ?? null,
       completed_at: status === "completed" ? new Date().toISOString() : null,
+      item_type: itemType,
     })
     .select()
     .single();

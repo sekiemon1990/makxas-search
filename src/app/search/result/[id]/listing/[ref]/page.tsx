@@ -570,7 +570,7 @@ function DetailInner({ id, listingRefParam }: { id: string; listingRefParam: str
               sources: defaultQuery.sources,
               conditions: defaultQuery.conditions,
               shipping: defaultQuery.shipping,
-            });
+            }, "listing");
             setAddedToList(true);
             toast({ message: "査定リストに追加しました。相場検索を開始します。" });
           }}
@@ -607,7 +607,7 @@ function DetailInner({ id, listingRefParam }: { id: string; listingRefParam: str
                       sources: defaultQuery.sources,
                       conditions: defaultQuery.conditions,
                       shipping: defaultQuery.shipping,
-                    });
+                    }, "listing");
                     setAddedToList(true);
                     setShowReplaceDialog(false);
                     toast({ message: "入れ替えました。相場検索を開始します。" });
@@ -625,7 +625,7 @@ function DetailInner({ id, listingRefParam }: { id: string; listingRefParam: str
                       sources: defaultQuery.sources,
                       conditions: defaultQuery.conditions,
                       shipping: defaultQuery.shipping,
-                    });
+                    }, "listing");
                     setAddedToList(true);
                     setShowReplaceDialog(false);
                     toast({ message: "リストに追加しました。相場検索を開始します。" });
