@@ -789,35 +789,41 @@ function ResultInner({ resultId }: { resultId: string }) {
               const url = buildPlatformSearchUrl(key, keyword);
               const failed = failedSources.includes(key);
               return (
-                <a
-                  key={key}
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-between gap-2 px-4 h-12 rounded-lg bg-surface border-2 hover:bg-surface-2 active:bg-surface-2 transition-colors"
-                  style={{ borderColor: `${meta.color}33` }}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <PlatformLogo source={key} size={20} />
-                    <span
-                      className="text-sm font-semibold truncate"
-                      style={{ color: meta.color }}
-                    >
-                      {meta.name}で「{keyword}」を見る
-                    </span>
-                    {failed && (
-                      <span className="shrink-0 text-xs text-danger flex items-center gap-0.5">
-                        <AlertTriangle size={12} />
-                        取得失敗
+                <div key={key}>
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between gap-2 px-4 h-12 rounded-lg bg-surface border-2 hover:bg-surface-2 active:bg-surface-2 transition-colors"
+                    style={{ borderColor: `${meta.color}33` }}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <PlatformLogo source={key} size={20} />
+                      <span
+                        className="text-sm font-semibold truncate"
+                        style={{ color: meta.color }}
+                      >
+                        {meta.name}で「{keyword}」を見る
                       </span>
-                    )}
-                  </div>
-                  <ExternalLink
-                    size={16}
-                    style={{ color: meta.color }}
-                    className="shrink-0"
-                  />
-                </a>
+                      {failed && (
+                        <span className="shrink-0 text-xs text-danger flex items-center gap-0.5">
+                          <AlertTriangle size={12} />
+                          取得失敗
+                        </span>
+                      )}
+                    </div>
+                    <ExternalLink
+                      size={16}
+                      style={{ color: meta.color }}
+                      className="shrink-0"
+                    />
+                  </a>
+                  {key === "jimoty" && (
+                    <p className="text-[10px] text-muted mt-1 px-4">
+                      ※ 出品中の希望価格（売却済み価格は非公開）
+                    </p>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -970,6 +976,9 @@ function ResultInner({ resultId }: { resultId: string }) {
                   const count = flatListings.filter(
                     (l) => l.source === key
                   ).length;
+                  const tabName = key === "jimoty"
+                    ? `${meta.shortName}(参考) (${count})`
+                    : `${meta.shortName} (${count})`;
                   return (
                     <FilterChip
                       key={key}
@@ -978,7 +987,7 @@ function ResultInner({ resultId }: { resultId: string }) {
                         setFilter(key);
                         setExtraPages(0);
                       }}
-                      label={`${meta.shortName} (${count})`}
+                      label={tabName}
                       color={meta.color}
                     />
                   );

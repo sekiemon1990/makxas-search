@@ -161,6 +161,22 @@ async function fetchDashboardData() {
     .order("viewed_at", { ascending: false })
     .limit(1000);
 
+  // 査定ステータス集計
+  const { data: appraisalStats } = await service
+    .from("list_items")
+    .select("appraisal_status")
+    .order("created_at", { ascending: false })
+    .limit(1000);
+
+  // 直近7日のスクレイピング状態
+  const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: recentSearches } = await service
+    .from("searches")
+    .select("sources, status, total_count, searched_at")
+    .gte("searched_at", since7d)
+    .order("searched_at", { ascending: false })
+    .limit(500);
+
   // ユーザーメールマップ
   const {
     data: { users },
@@ -170,10 +186,34 @@ async function fetchDashboardData() {
     userEmailMap[u.id] = u.email ?? u.id.slice(0, 8);
   });
 
+  // 査定ステータス集計
+  const statusCounts = {
+    pending: appraisalStats?.filter(r => r.appraisal_status === 'pending').length ?? 0,
+    accepted: appraisalStats?.filter(r => r.appraisal_status === 'accepted').length ?? 0,
+    rejected: appraisalStats?.filter(r => r.appraisal_status === 'rejected').length ?? 0,
+  };
+
+  // スクレイピング状態（直近7日）
+  const sourceKeys = ["yahoo_auction", "mercari", "jimoty"] as const;
+  const sourceLabels: Record<string, string> = {
+    yahoo_auction: "ヤフオク",
+    mercari: "メルカリ",
+    jimoty: "ジモティー",
+  };
+  const scrapeHealth = sourceKeys.map(key => {
+    const related = recentSearches?.filter(s => s.sources?.includes(key)) ?? [];
+    const total = related.length;
+    const errors = related.filter(s => s.status === 'error').length;
+    const successRate = total === 0 ? null : Math.round(((total - errors) / total) * 100);
+    return { key, label: sourceLabels[key], total, errors, successRate };
+  });
+
   return {
     searches: (searches ?? []) as SearchRow[],
     views: (views ?? []) as ViewRow[],
     userEmailMap,
+    statusCounts,
+    scrapeHealth,
   };
 }
 
@@ -330,7 +370,7 @@ function aggregate(searches: SearchRow[], views: ViewRow[]) {
 // ──────────────────────────────────────────────
 
 export default async function AdminDashboardPage() {
-  const { searches, views, userEmailMap } = await fetchDashboardData();
+  const { searches, views, userEmailMap, statusCounts, scrapeHealth } = await fetchDashboardData();
   const agg = aggregate(searches, views);
   const recent200 = searches.slice(0, 200);
 
@@ -876,6 +916,50 @@ export default async function AdminDashboardPage() {
             </table>
           </div>
         </div>
+
+        {/* ── 査定ステータス集計 ── */}
+        <section className="bg-surface border border-border rounded-xl p-4 mb-6">
+          <h2 className="text-sm font-semibold text-foreground mb-3">査定ステータス集計</h2>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="text-center p-3 bg-surface-2 rounded-lg">
+              <div className="text-2xl font-bold text-foreground">{statusCounts.pending}</div>
+              <div className="text-xs text-muted mt-1">未査定</div>
+            </div>
+            <div className="text-center p-3 bg-success/10 rounded-lg">
+              <div className="text-2xl font-bold text-success">{statusCounts.accepted}</div>
+              <div className="text-xs text-muted mt-1">承認済み</div>
+            </div>
+            <div className="text-center p-3 bg-danger/10 rounded-lg">
+              <div className="text-2xl font-bold text-danger">{statusCounts.rejected}</div>
+              <div className="text-xs text-muted mt-1">却下済み</div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── スクレイピング状態（直近7日） ── */}
+        <section className="bg-surface border border-border rounded-xl p-4 mb-6">
+          <h2 className="text-sm font-semibold text-foreground mb-1">スクレイピング状態（直近7日）</h2>
+          <p className="text-xs text-muted mb-3">各媒体のデータ取得の成功率です</p>
+          <div className="grid grid-cols-3 gap-3">
+            {scrapeHealth.map(h => {
+              const color = h.successRate === null ? 'text-muted'
+                : h.successRate >= 90 ? 'text-success'
+                : h.successRate >= 70 ? 'text-warning'
+                : 'text-danger';
+              return (
+                <div key={h.key} className="text-center p-3 bg-surface-2 rounded-lg">
+                  <div className={`text-2xl font-bold ${color}`}>
+                    {h.successRate === null ? '—' : `${h.successRate}%`}
+                  </div>
+                  <div className="text-xs font-medium text-foreground mt-1">{h.label}</div>
+                  <div className="text-[10px] text-muted mt-0.5">
+                    {h.total === 0 ? '検索なし' : `${h.total}件中 ${h.errors}件エラー`}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
         {/* ── 検索アクティビティテーブル ── */}
         <div className="bg-surface border border-border rounded-xl overflow-hidden">
