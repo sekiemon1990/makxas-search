@@ -44,6 +44,7 @@ export type ListItem = {
   totalMs?: number;
   completedAt?: string;
   notes?: string;
+  sortOrder?: number;
 };
 
 export type AppraisalList = {
@@ -91,6 +92,7 @@ type ItemRow = {
   total_ms: number | null;
   target_complete_at_ms: number | null;
   notes: string | null;
+  sort_order: number | null;
 };
 
 function rowToItem(row: ItemRow): ListItem {
@@ -125,6 +127,7 @@ function rowToItem(row: ItemRow): ListItem {
     item.targetCompleteAt = Math.floor(row.target_complete_at_ms);
   }
   if (row.notes) item.notes = row.notes;
+  if (row.sort_order !== null) item.sortOrder = row.sort_order;
   return item;
 }
 
@@ -145,6 +148,7 @@ export async function fetchAllListsWithItems(): Promise<AppraisalList[]> {
   const { data: items, error: itemsError } = await supabase
     .from("list_items")
     .select("*")
+    .order("sort_order", { ascending: true, nullsFirst: false })
     .order("added_at", { ascending: false });
   if (itemsError) {
     console.error("[lists] fetchAll items error:", itemsError);
@@ -342,4 +346,16 @@ export async function clearListItems(listId: string): Promise<void> {
     .delete()
     .eq("list_id", listId);
   if (error) console.error("[lists] clearListItems error:", error);
+}
+
+/** ドラッグ&ドロップ後の並び順を一括保存 */
+export async function updateItemsSortOrder(
+  orders: { id: string; sortOrder: number }[]
+): Promise<void> {
+  const supabase = createClient();
+  await Promise.all(
+    orders.map(({ id, sortOrder }) =>
+      supabase.from("list_items").update({ sort_order: sortOrder }).eq("id", id)
+    )
+  );
 }
