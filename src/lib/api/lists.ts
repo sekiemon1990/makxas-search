@@ -43,6 +43,7 @@ export type ListItem = {
   targetCompleteAt?: number;
   totalMs?: number;
   completedAt?: string;
+  notes?: string;
 };
 
 export type AppraisalList = {
@@ -89,6 +90,7 @@ type ItemRow = {
   completed_at: string | null;
   total_ms: number | null;
   target_complete_at_ms: number | null;
+  notes: string | null;
 };
 
 function rowToItem(row: ItemRow): ListItem {
@@ -122,6 +124,7 @@ function rowToItem(row: ItemRow): ListItem {
   if (row.target_complete_at_ms !== null) {
     item.targetCompleteAt = Math.floor(row.target_complete_at_ms);
   }
+  if (row.notes) item.notes = row.notes;
   return item;
 }
 
@@ -307,6 +310,7 @@ export async function updateListItem(
     patch.target_complete_at_ms = Math.floor(updates.targetCompleteAt);
   }
   if (updates.error !== undefined) patch.error_message = updates.error;
+  if (updates.notes !== undefined) patch.notes = updates.notes || null;
   if (updates.result !== undefined) {
     patch.median = updates.result.median;
     patch.min_price = updates.result.min;
