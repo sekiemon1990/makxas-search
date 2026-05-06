@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Type, Vibrate, Sparkles, Calculator, LogOut, User, Loader2 } from "lucide-react";
+import { Type, Vibrate, Sparkles, Calculator, LogOut, User, Loader2, LayoutDashboard, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { useSettings, useTheme } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/client";
@@ -155,6 +156,19 @@ export default function SettingsPage() {
               計算機やAI査定の初期値に使われます。
             </p>
           </div>
+        </section>
+
+        <section className="bg-surface border border-border rounded-xl overflow-hidden">
+          <Link
+            href="/admin"
+            className="flex items-center justify-between px-4 py-3.5 hover:bg-surface-2 active:bg-surface-2 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <LayoutDashboard size={16} className="text-primary" />
+              <span className="text-sm font-semibold text-foreground">管理画面</span>
+            </div>
+            <ChevronRight size={16} className="text-muted" />
+          </Link>
         </section>
 
         <section className="bg-surface-2 rounded-xl p-3">

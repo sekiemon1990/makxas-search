@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, History, Settings as SettingsIcon, ListChecks, Camera } from "lucide-react";
+import { Search, History, Settings as SettingsIcon, ListChecks, Camera, LayoutDashboard } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { ListBar } from "./ListBar";
 
@@ -81,6 +81,12 @@ export function AppShell({
                 icon={<SettingsIcon size={16} />}
                 label="設定"
                 matchPrefix="/settings"
+              />
+              <TopNavItem
+                href="/admin"
+                icon={<LayoutDashboard size={16} />}
+                label="管理"
+                matchPrefix="/admin"
               />
             </nav>
           )}
