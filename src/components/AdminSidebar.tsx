@@ -8,6 +8,8 @@ import {
   DollarSign,
   Home,
   Lock,
+  BotMessageSquare,
+  Settings,
 } from "lucide-react";
 
 // ──────────────────────────────────────────────
@@ -99,6 +101,21 @@ export function AdminSidebar({ hasCostAccess, userEmail }: Props) {
             icon={<Users size={15} />}
           >
             ユーザー行動詳細
+          </NavItem>
+
+          <NavItem
+            href="/admin/ai"
+            active={pathname === "/admin/ai"}
+            icon={<BotMessageSquare size={15} />}
+          >
+            AIアシスタント
+          </NavItem>
+          <NavItem
+            href="/admin/settings"
+            active={pathname === "/admin/settings"}
+            icon={<Settings size={15} />}
+          >
+            管理設定
           </NavItem>
 
           {/* コスト詳細：COST_VIEWER_EMAILS のユーザーのみ表示 */}
