@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AdminSidebar } from "@/components/AdminSidebar";
+import { FloatingWidget } from "@/components/ai/FloatingWidget";
 
 /**
  * 管理画面の共通レイアウト。
@@ -32,6 +33,7 @@ export default async function AdminLayout({
       <div className="ml-56 flex-1 flex flex-col min-h-screen">
         {children}
       </div>
+      <FloatingWidget pageContext="管理画面" />
     </div>
   );
 }
