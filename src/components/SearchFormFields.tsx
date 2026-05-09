@@ -9,6 +9,8 @@ import {
   History as HistoryIcon,
   Sparkles,
   Mic,
+  Camera,
+  Loader2,
 } from "lucide-react";
 import { PlatformLogo } from "@/components/PlatformLogo";
 import { SOURCES, type SourceKey } from "@/lib/types";
@@ -98,6 +100,7 @@ export function SearchFormFields({
   );
   const [keywordFocused, setKeywordFocused] = useState(false);
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // ローカル辞書からの即時候補 (0ms)
   const dictionaryCandidates = useMemo(() => {
@@ -284,7 +287,7 @@ export function SearchFormFields({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
           <label
@@ -302,7 +305,8 @@ export function SearchFormFields({
             クリップボードから貼り付け
           </button>
         </div>
-        <div className="relative">
+        <div className="flex gap-2">
+        <div className="relative flex-1">
           <input
             id="keyword"
             type="text"
@@ -425,6 +429,11 @@ export function SearchFormFields({
 
             </div>
           )}
+        </div>
+        <CameraButton
+          onKeywordChange={(kw) => setKeyword(kw)}
+          onSubmit={() => formRef.current?.requestSubmit()}
+        />
         </div>
       </div>
 
@@ -745,6 +754,96 @@ function VoiceInputButton({
     >
       <Mic size={18} />
     </button>
+  );
+}
+
+// ─────────────────────────────────────────────
+// CameraButton: 撮影→Vision API→キーワード自動入力
+// ─────────────────────────────────────────────
+
+function CameraButton({
+  onKeywordChange,
+  onSubmit,
+}: {
+  onKeywordChange: (kw: string) => void;
+  onSubmit: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleFile(file: File) {
+    setLoading(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const res = await fetch("/api/vision/identify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: [{ id: "cam", photos: [dataUrl] }] }),
+      });
+
+      const json = await res.json();
+      const results = json.results as {
+        productName: string;
+        model: string;
+        keywords: string;
+        confidence: "high" | "medium" | "low";
+      }[];
+
+      if (!res.ok || !results?.length) {
+        toast({ message: "商品を特定できませんでした" });
+        return;
+      }
+
+      const top = results[0];
+      onKeywordChange(top.keywords || top.productName);
+
+      if (top.confidence === "low") {
+        toast({ message: `「${top.productName}」で検索します` });
+      }
+
+      onSubmit();
+    } catch {
+      toast({ message: "商品を特定できませんでした" });
+    } finally {
+      setLoading(false);
+      // input をリセットして同じファイルの再選択を可能に
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleFile(f);
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={loading}
+        aria-label="カメラで商品を撮影して検索"
+        className="shrink-0 w-12 h-12 rounded-lg border border-border bg-surface text-muted hover:text-foreground hover:bg-surface-2 flex items-center justify-center transition-colors disabled:opacity-50"
+      >
+        {loading ? (
+          <Loader2 size={18} className="animate-spin" />
+        ) : (
+          <Camera size={18} />
+        )}
+      </button>
+    </>
   );
 }
 
