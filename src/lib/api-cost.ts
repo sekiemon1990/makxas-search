@@ -20,7 +20,9 @@ export type ApiEndpoint =
   | "keyword-suggest"
   | "refine-keywords"
   | "vision-identify"
-  | "bulk-import-image";
+  | "bulk-import-image"
+  | "ai-chat"
+  | "mikomiku-estimate";
 
 interface TokenUsage {
   input_tokens?: number | null;

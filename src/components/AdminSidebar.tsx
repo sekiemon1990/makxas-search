@@ -8,6 +8,7 @@ import {
   DollarSign,
   Home,
   Lock,
+  Settings,
 } from "lucide-react";
 
 // ──────────────────────────────────────────────
@@ -120,6 +121,13 @@ export function AdminSidebar({ hasCostAccess, userEmail }: Props) {
         </NavSection>
 
         <div className="mt-4 pt-3 border-t border-border">
+          <NavItem
+            href="/admin/settings"
+            active={pathname === "/admin/settings"}
+            icon={<Settings size={15} />}
+          >
+            管理設定
+          </NavItem>
           <NavItem href="/search" active={false} icon={<Home size={15} />}>
             検索アプリへ戻る
           </NavItem>
