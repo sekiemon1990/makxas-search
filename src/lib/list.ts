@@ -23,6 +23,7 @@ import {
   type ListItemStatus,
 } from "./api/lists";
 import { toast } from "./toast";
+import { createClient } from "@/lib/supabase/client";
 
 export type {
   AppraisalList,
@@ -476,7 +477,33 @@ async function completeItem(itemId: string): Promise<void> {
   const min = Math.round(median * 0.6);
   const max = Math.round(median * 1.8);
   const count = 25 + (seed % 100);
-  const suggestedBuyPrice = Math.round((median * 70) / 100);
+
+  // mikomiku_prompt を app_config から取得して Claude Haiku で見込金額を算出
+  let suggestedBuyPrice = Math.round(median * 0.7);
+  try {
+    const supabase = createClient();
+    const { data: configData } = await supabase
+      .from("app_config")
+      .select("value")
+      .eq("key", "mikomiku_prompt")
+      .maybeSingle();
+    const prompt = configData?.value?.trim() || undefined;
+
+    const res = await fetch("/api/estimate/mikomiku", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ median, min, max, count, prompt }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (typeof json.mikomiku === "number" && json.mikomiku >= 0) {
+        suggestedBuyPrice = json.mikomiku;
+      }
+    }
+  } catch {
+    // フォールバック: 中央値の70%（既に設定済み）
+  }
 
   await updateListItem(itemId, {
     status: "completed",
