@@ -6,6 +6,12 @@ import {
   TrendingDown,
   CheckCircle2,
   Loader2,
+  Tag,
+  BookOpen,
+  ChevronDown,
+  ChevronRight,
+  Trash2,
+  Plus,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -208,6 +214,559 @@ function MikomikuPromptSection() {
 }
 
 // ─────────────────────────────────────────────
+// カテゴリ別見込金額ロジック設定セクション
+// ─────────────────────────────────────────────
+
+type Category = {
+  id: string;
+  name: string;
+  level: "major" | "minor";
+  major_id: string | null;
+  prompt: string;
+  sort_order: number;
+};
+
+function CategoryPromptsSection() {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [openMajors, setOpenMajors] = useState<Set<string>>(new Set());
+  const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [newMajorName, setNewMajorName] = useState("");
+  const [newMinorNames, setNewMinorNames] = useState<Record<string, string>>({});
+  const [addingMajor, setAddingMajor] = useState(false);
+  const [addingMinorIds, setAddingMinorIds] = useState<Set<string>>(new Set());
+  const [localPrompts, setLocalPrompts] = useState<Record<string, string>>({});
+
+  async function fetchCategories() {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("mikomiku_categories")
+      .select("id, name, level, major_id, prompt, sort_order")
+      .order("sort_order");
+    if (data) {
+      setCategories(data as Category[]);
+      const prompts: Record<string, string> = {};
+      for (const c of data as Category[]) {
+        prompts[c.id] = c.prompt ?? "";
+      }
+      setLocalPrompts(prompts);
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("mikomiku_categories")
+        .select("id, name, level, major_id, prompt, sort_order")
+        .order("sort_order");
+      if (data) {
+        setCategories(data as Category[]);
+        const prompts: Record<string, string> = {};
+        for (const c of data as Category[]) {
+          prompts[c.id] = c.prompt ?? "";
+        }
+        setLocalPrompts(prompts);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  function toggleMajor(id: string) {
+    setOpenMajors((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function savePrompt(cat: Category) {
+    setSavingIds((prev) => new Set(prev).add(cat.id));
+    const supabase = createClient();
+    await supabase
+      .from("mikomiku_categories")
+      .update({ prompt: localPrompts[cat.id] ?? "", updated_at: new Date().toISOString() })
+      .eq("id", cat.id);
+    setSavingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(cat.id);
+      return next;
+    });
+    setSavedIds((prev) => new Set(prev).add(cat.id));
+    setTimeout(() => {
+      setSavedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(cat.id);
+        return next;
+      });
+    }, 2000);
+    await fetchCategories();
+  }
+
+  async function addMajor() {
+    const name = newMajorName.trim();
+    if (!name) return;
+    setAddingMajor(true);
+    const supabase = createClient();
+    const maxOrder = categories.filter((c) => c.level === "major").reduce((a, c) => Math.max(a, c.sort_order), 0);
+    await supabase.from("mikomiku_categories").insert({
+      name,
+      level: "major",
+      major_id: null,
+      prompt: "",
+      sort_order: maxOrder + 1,
+      updated_at: new Date().toISOString(),
+    });
+    setNewMajorName("");
+    setAddingMajor(false);
+    await fetchCategories();
+  }
+
+  async function addMinor(majorId: string) {
+    const name = (newMinorNames[majorId] ?? "").trim();
+    if (!name) return;
+    setAddingMinorIds((prev) => new Set(prev).add(majorId));
+    const supabase = createClient();
+    const minors = categories.filter((c) => c.level === "minor" && c.major_id === majorId);
+    const maxOrder = minors.reduce((a, c) => Math.max(a, c.sort_order), 0);
+    await supabase.from("mikomiku_categories").insert({
+      name,
+      level: "minor",
+      major_id: majorId,
+      prompt: "",
+      sort_order: maxOrder + 1,
+      updated_at: new Date().toISOString(),
+    });
+    setNewMinorNames((prev) => ({ ...prev, [majorId]: "" }));
+    setAddingMinorIds((prev) => {
+      const next = new Set(prev);
+      next.delete(majorId);
+      return next;
+    });
+    await fetchCategories();
+  }
+
+  async function deleteCategory(id: string) {
+    const supabase = createClient();
+    // 大カテゴリの場合は配下の中カテゴリも削除
+    const cat = categories.find((c) => c.id === id);
+    if (cat?.level === "major") {
+      await supabase.from("mikomiku_categories").delete().eq("major_id", id);
+    }
+    await supabase.from("mikomiku_categories").delete().eq("id", id);
+    await fetchCategories();
+  }
+
+  const majorCategories = categories.filter((c) => c.level === "major");
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-5 flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <Tag size={16} className="text-primary" />
+        <h2 className="text-sm font-semibold text-foreground">
+          カテゴリ別見込金額ロジック設定
+        </h2>
+      </div>
+      <p className="text-xs text-muted leading-relaxed">
+        カテゴリ別に見込金額の算出ロジックを設定します。優先順位: 中カテゴリ &gt; 大カテゴリ &gt; 全体設定。未設定の場合は上位のプロンプトが使用されます。
+      </p>
+
+      {loading ? (
+        <div className="h-16 flex items-center justify-center">
+          <Loader2 size={16} className="animate-spin text-muted" />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {majorCategories.map((major) => {
+            const isOpen = openMajors.has(major.id);
+            const minors = categories.filter((c) => c.level === "minor" && c.major_id === major.id);
+            return (
+              <div key={major.id} className="border border-border rounded-lg overflow-hidden">
+                {/* 大カテゴリヘッダー */}
+                <div className="flex items-center gap-2 px-3 py-2.5 bg-surface-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleMajor(major.id)}
+                    className="flex items-center gap-1.5 flex-1 text-sm font-medium text-foreground hover:text-primary text-left"
+                  >
+                    {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    {major.name}
+                    <span className="text-xs text-muted font-normal ml-1">
+                      ({minors.length}個の中カテゴリ)
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteCategory(major.id)}
+                    className="p-1 rounded hover:bg-red-50 hover:text-red-500 text-muted transition-colors"
+                    title="削除"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+
+                {isOpen && (
+                  <div className="p-3 flex flex-col gap-3 border-t border-border">
+                    {/* 大カテゴリのプロンプト */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs text-muted">大カテゴリ「{major.name}」のロジック</label>
+                      <textarea
+                        value={localPrompts[major.id] ?? ""}
+                        onChange={(e) =>
+                          setLocalPrompts((prev) => ({ ...prev, [major.id]: e.target.value }))
+                        }
+                        rows={4}
+                        placeholder="このカテゴリの見込金額算出ロジックを記入（空白の場合は全体設定を使用）"
+                        className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-foreground placeholder:text-muted focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 resize-none leading-relaxed font-mono"
+                      />
+                      <div className="flex items-center justify-between">
+                        {savedIds.has(major.id) ? (
+                          <span className="text-xs text-green-600 flex items-center gap-1">
+                            <CheckCircle2 size={12} />
+                            保存しました
+                          </span>
+                        ) : (
+                          <span />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => savePrompt(major)}
+                          disabled={savingIds.has(major.id)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
+                        >
+                          {savingIds.has(major.id) && <Loader2 size={11} className="animate-spin" />}
+                          保存
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 中カテゴリ一覧 */}
+                    {minors.length > 0 && (
+                      <div className="flex flex-col gap-2 pl-3 border-l-2 border-border">
+                        {minors.map((minor) => (
+                          <div key={minor.id} className="flex flex-col gap-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium text-foreground flex-1">
+                                中カテゴリ「{minor.name}」
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => deleteCategory(minor.id)}
+                                className="p-1 rounded hover:bg-red-50 hover:text-red-500 text-muted transition-colors"
+                                title="削除"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                            <textarea
+                              value={localPrompts[minor.id] ?? ""}
+                              onChange={(e) =>
+                                setLocalPrompts((prev) => ({ ...prev, [minor.id]: e.target.value }))
+                              }
+                              rows={4}
+                              placeholder="このカテゴリの見込金額算出ロジックを記入（空白の場合は大カテゴリの設定を使用）"
+                              className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-foreground placeholder:text-muted focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 resize-none leading-relaxed font-mono"
+                            />
+                            <div className="flex items-center justify-between">
+                              {savedIds.has(minor.id) ? (
+                                <span className="text-xs text-green-600 flex items-center gap-1">
+                                  <CheckCircle2 size={12} />
+                                  保存しました
+                                </span>
+                              ) : (
+                                <span />
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => savePrompt(minor)}
+                                disabled={savingIds.has(minor.id)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
+                              >
+                                {savingIds.has(minor.id) && <Loader2 size={11} className="animate-spin" />}
+                                保存
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 中カテゴリ追加フォーム */}
+                    <div className="flex items-center gap-2 pl-3 border-l-2 border-dashed border-border">
+                      <input
+                        type="text"
+                        value={newMinorNames[major.id] ?? ""}
+                        onChange={(e) =>
+                          setNewMinorNames((prev) => ({ ...prev, [major.id]: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") addMinor(major.id);
+                        }}
+                        placeholder="中カテゴリ名を入力"
+                        className="flex-1 rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-xs text-foreground placeholder:text-muted focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => addMinor(major.id)}
+                        disabled={addingMinorIds.has(major.id)}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border text-xs font-medium hover:bg-surface-2 disabled:opacity-50"
+                      >
+                        {addingMinorIds.has(major.id) ? (
+                          <Loader2 size={11} className="animate-spin" />
+                        ) : (
+                          <Plus size={11} />
+                        )}
+                        追加
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* 大カテゴリ追加フォーム */}
+          <div className="flex items-center gap-2 mt-1">
+            <input
+              type="text"
+              value={newMajorName}
+              onChange={(e) => setNewMajorName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") addMajor();
+              }}
+              placeholder="大カテゴリ名を入力"
+              className="flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            <button
+              type="button"
+              onClick={addMajor}
+              disabled={addingMajor}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+            >
+              {addingMajor ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+              大カテゴリ追加
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// 知識ベースセクション
+// ─────────────────────────────────────────────
+
+type KnowledgeFile = {
+  id: string;
+  filename: string;
+  storage_path: string;
+  mime_type: string;
+  size_bytes: number;
+  extracted_text: string | null;
+  created_at: string;
+};
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function KnowledgeBaseSection() {
+  const [files, setFiles] = useState<KnowledgeFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+
+  async function fetchFiles() {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("mikomiku_knowledge_files")
+      .select("id, filename, storage_path, mime_type, size_bytes, extracted_text, created_at")
+      .order("created_at", { ascending: false });
+    if (data) setFiles(data as KnowledgeFile[]);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("mikomiku_knowledge_files")
+        .select("id, filename, storage_path, mime_type, size_bytes, extracted_text, created_at")
+        .order("created_at", { ascending: false });
+      if (data) setFiles(data as KnowledgeFile[]);
+      setLoading(false);
+    })();
+  }, []);
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const selectedFiles = e.target.files;
+    if (!selectedFiles || selectedFiles.length === 0) return;
+
+    setUploading(true);
+    const supabase = createClient();
+
+    for (const file of Array.from(selectedFiles)) {
+      try {
+        const storagePath = `${Date.now()}-${file.name}`;
+
+        // 1. Storage にアップロード
+        const { error: storageError } = await supabase.storage
+          .from("mikomiku-knowledge")
+          .upload(storagePath, file);
+
+        if (storageError) {
+          console.error("[knowledge] storage upload error:", storageError);
+          continue;
+        }
+
+        // 2. テキスト抽出
+        let extractedText: string | null = null;
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          const res = await fetch("/api/admin/extract-text", {
+            method: "POST",
+            body: formData,
+          });
+          if (res.ok) {
+            const json = await res.json();
+            extractedText = json.text ?? null;
+          }
+        } catch (extractErr) {
+          console.error("[knowledge] text extraction error:", extractErr);
+        }
+
+        // 3. メタデータを DB に保存
+        await supabase.from("mikomiku_knowledge_files").insert({
+          filename: file.name,
+          storage_path: storagePath,
+          mime_type: file.type,
+          size_bytes: file.size,
+          extracted_text: extractedText,
+          created_at: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error("[knowledge] upload error:", err);
+      }
+    }
+
+    // inputをリセット
+    e.target.value = "";
+    setUploading(false);
+    await fetchFiles();
+  }
+
+  async function deleteFile(file: KnowledgeFile) {
+    setDeletingIds((prev) => new Set(prev).add(file.id));
+    const supabase = createClient();
+
+    // Storage から削除
+    await supabase.storage.from("mikomiku-knowledge").remove([file.storage_path]);
+
+    // DB から削除
+    await supabase.from("mikomiku_knowledge_files").delete().eq("id", file.id);
+
+    setDeletingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(file.id);
+      return next;
+    });
+    await fetchFiles();
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-5 flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <BookOpen size={16} className="text-primary" />
+        <h2 className="text-sm font-semibold text-foreground">
+          知識ベース
+        </h2>
+      </div>
+      <p className="text-xs text-muted leading-relaxed">
+        見込金額算出時にClaudeが参照する知識ファイルをアップロードします。PDF・テキスト・CSV・画像など各種形式に対応しています。
+      </p>
+
+      {/* アップロードエリア */}
+      <div className="relative">
+        <label className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
+          {uploading ? (
+            <>
+              <Loader2 size={20} className="animate-spin text-primary" />
+              <span className="text-xs text-muted">アップロード中...</span>
+            </>
+          ) : (
+            <>
+              <Plus size={20} className="text-muted" />
+              <span className="text-sm text-foreground font-medium">ファイルを選択またはドロップ</span>
+              <span className="text-xs text-muted">対応形式: PDF, TXT, CSV, MD, JSON, PNG, JPG</span>
+            </>
+          )}
+          <input
+            type="file"
+            multiple
+            accept=".pdf,.txt,.csv,.md,.json,.png,.jpg,.jpeg,.webp"
+            onChange={handleFileChange}
+            disabled={uploading}
+            className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
+          />
+        </label>
+      </div>
+
+      {/* ファイル一覧 */}
+      {loading ? (
+        <div className="h-16 flex items-center justify-center">
+          <Loader2 size={16} className="animate-spin text-muted" />
+        </div>
+      ) : files.length === 0 ? (
+        <p className="text-xs text-muted text-center py-4">
+          アップロード済みのファイルはありません
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {files.map((file) => (
+            <div
+              key={file.id}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border bg-surface-2"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-foreground truncate">{file.filename}</p>
+                <p className="text-xs text-muted mt-0.5">
+                  {formatBytes(file.size_bytes)} ·{" "}
+                  {file.extracted_text != null ? (
+                    <span className="text-green-600">テキスト抽出済み</span>
+                  ) : (
+                    <span className="text-muted">画像のみ保存</span>
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => deleteFile(file)}
+                disabled={deletingIds.has(file.id)}
+                className="p-1.5 rounded hover:bg-red-50 hover:text-red-500 text-muted transition-colors disabled:opacity-50"
+                title="削除"
+              >
+                {deletingIds.has(file.id) ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Trash2 size={13} />
+                )}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // ページ本体
 // ─────────────────────────────────────────────
 
@@ -220,6 +779,8 @@ export default function AdminSettingsPage() {
       </div>
       <AiContextSection />
       <MikomikuPromptSection />
+      <CategoryPromptsSection />
+      <KnowledgeBaseSection />
     </div>
   );
 }

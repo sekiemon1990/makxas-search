@@ -492,7 +492,7 @@ async function completeItem(itemId: string): Promise<void> {
     const res = await fetch("/api/estimate/mikomiku", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ median, min, max, count, prompt }),
+      body: JSON.stringify({ median, min, max, count, prompt, keyword: item.query.keyword }),
       signal: AbortSignal.timeout(8000),
     });
     if (res.ok) {
