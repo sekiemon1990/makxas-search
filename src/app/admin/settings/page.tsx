@@ -214,6 +214,228 @@ function MikomikuPromptSection() {
 }
 
 // ─────────────────────────────────────────────
+// 知識ファイルアップロード（再利用コンポーネント）
+// categoryId: null = 全体共通、string = カテゴリ固有
+// ─────────────────────────────────────────────
+
+type KnowledgeFile = {
+  id: string;
+  filename: string;
+  storage_path: string;
+  mime_type: string;
+  size_bytes: number;
+  extracted_text: string | null;
+  created_at: string;
+};
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function KnowledgeFileUpload({
+  categoryId,
+  compact = false,
+}: {
+  categoryId: string | null;
+  compact?: boolean;
+}) {
+  const [files, setFiles] = useState<KnowledgeFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+
+  async function fetchFiles() {
+    const supabase = createClient();
+    const query = supabase
+      .from("mikomiku_knowledge_files")
+      .select("id, filename, storage_path, mime_type, size_bytes, extracted_text, created_at")
+      .order("created_at", { ascending: false });
+
+    const { data } = categoryId === null
+      ? await query.is("category_id", null)
+      : await query.eq("category_id", categoryId);
+
+    if (data) setFiles(data as KnowledgeFile[]);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    // 非同期IIFEで実行（awaitの後にのみsetStateを呼ぶ）
+    (async () => {
+      const supabase = createClient();
+      const query = supabase
+        .from("mikomiku_knowledge_files")
+        .select("id, filename, storage_path, mime_type, size_bytes, extracted_text, created_at")
+        .order("created_at", { ascending: false });
+
+      const { data } = categoryId === null
+        ? await query.is("category_id", null)
+        : await query.eq("category_id", categoryId);
+
+      if (data) setFiles(data as KnowledgeFile[]);
+      setLoading(false);
+    })();
+  }, [categoryId]);
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const selectedFiles = e.target.files;
+    if (!selectedFiles || selectedFiles.length === 0) return;
+
+    setUploading(true);
+    const supabase = createClient();
+
+    for (const file of Array.from(selectedFiles)) {
+      try {
+        const storagePath = `${Date.now()}-${file.name}`;
+
+        const { error: storageError } = await supabase.storage
+          .from("mikomiku-knowledge")
+          .upload(storagePath, file);
+
+        if (storageError) {
+          console.error("[knowledge] storage upload error:", storageError);
+          continue;
+        }
+
+        let extractedText: string | null = null;
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          const res = await fetch("/api/admin/extract-text", {
+            method: "POST",
+            body: formData,
+          });
+          if (res.ok) {
+            const json = await res.json();
+            extractedText = json.text ?? null;
+          }
+        } catch (extractErr) {
+          console.error("[knowledge] text extraction error:", extractErr);
+        }
+
+        const insertData: Record<string, unknown> = {
+          filename: file.name,
+          storage_path: storagePath,
+          mime_type: file.type,
+          size_bytes: file.size,
+          extracted_text: extractedText,
+          created_at: new Date().toISOString(),
+        };
+        if (categoryId !== null) {
+          insertData.category_id = categoryId;
+        }
+
+        await supabase.from("mikomiku_knowledge_files").insert(insertData);
+      } catch (err) {
+        console.error("[knowledge] upload error:", err);
+      }
+    }
+
+    e.target.value = "";
+    setUploading(false);
+    await fetchFiles();
+  }
+
+  async function deleteFile(file: KnowledgeFile) {
+    setDeletingIds((prev) => new Set(prev).add(file.id));
+    const supabase = createClient();
+    await supabase.storage.from("mikomiku-knowledge").remove([file.storage_path]);
+    await supabase.from("mikomiku_knowledge_files").delete().eq("id", file.id);
+    setDeletingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(file.id);
+      return next;
+    });
+    await fetchFiles();
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {/* アップロードエリア */}
+      <div className="relative">
+        <label
+          className={`flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors ${
+            compact ? "p-3" : "p-6"
+          }`}
+        >
+          {uploading ? (
+            <>
+              <Loader2 size={compact ? 14 : 20} className="animate-spin text-primary" />
+              <span className="text-xs text-muted">アップロード中...</span>
+            </>
+          ) : (
+            <>
+              <Plus size={compact ? 14 : 20} className="text-muted" />
+              <span className={`${compact ? "text-xs" : "text-sm"} text-foreground font-medium`}>
+                ファイルを選択またはドロップ
+              </span>
+              {!compact && (
+                <span className="text-xs text-muted">
+                  対応形式: PDF, TXT, CSV, MD, JSON, PNG, JPG
+                </span>
+              )}
+            </>
+          )}
+          <input
+            type="file"
+            multiple
+            accept=".pdf,.txt,.csv,.md,.json,.png,.jpg,.jpeg,.webp"
+            onChange={handleFileChange}
+            disabled={uploading}
+            className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
+          />
+        </label>
+      </div>
+
+      {/* ファイル一覧 */}
+      {loading ? (
+        <div className="flex items-center justify-center py-2">
+          <Loader2 size={13} className="animate-spin text-muted" />
+        </div>
+      ) : files.length === 0 ? (
+        <p className="text-xs text-muted text-center py-1">ファイルなし</p>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {files.map((file) => (
+            <div
+              key={file.id}
+              className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-border bg-surface-2"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-foreground truncate">{file.filename}</p>
+                <p className="text-xs text-muted mt-0.5">
+                  {formatBytes(file.size_bytes)} ·{" "}
+                  {file.extracted_text != null ? (
+                    <span className="text-green-600">テキスト抽出済み</span>
+                  ) : (
+                    <span className="text-muted">画像のみ</span>
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => deleteFile(file)}
+                disabled={deletingIds.has(file.id)}
+                className="p-1 rounded hover:bg-red-50 hover:text-red-500 text-muted transition-colors disabled:opacity-50"
+                title="削除"
+              >
+                {deletingIds.has(file.id) ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <Trash2 size={12} />
+                )}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // カテゴリ別見込金額ロジック設定セクション
 // ─────────────────────────────────────────────
 
@@ -351,7 +573,6 @@ function CategoryPromptsSection() {
 
   async function deleteCategory(id: string) {
     const supabase = createClient();
-    // 大カテゴリの場合は配下の中カテゴリも削除
     const cat = categories.find((c) => c.id === id);
     if (cat?.level === "major") {
       await supabase.from("mikomiku_categories").delete().eq("major_id", id);
@@ -371,7 +592,7 @@ function CategoryPromptsSection() {
         </h2>
       </div>
       <p className="text-xs text-muted leading-relaxed">
-        カテゴリ別に見込金額の算出ロジックを設定します。優先順位: 中カテゴリ &gt; 大カテゴリ &gt; 全体設定。未設定の場合は上位のプロンプトが使用されます。
+        カテゴリ別に見込金額の算出ロジックと知識ベースを設定します。優先順位: 中カテゴリ &gt; 大カテゴリ &gt; 全体設定。未設定の場合は上位のプロンプト・知識が使用されます。
       </p>
 
       {loading ? (
@@ -409,7 +630,7 @@ function CategoryPromptsSection() {
                 </div>
 
                 {isOpen && (
-                  <div className="p-3 flex flex-col gap-3 border-t border-border">
+                  <div className="p-3 flex flex-col gap-4 border-t border-border">
                     {/* 大カテゴリのプロンプト */}
                     <div className="flex flex-col gap-1.5">
                       <label className="text-xs text-muted">大カテゴリ「{major.name}」のロジック</label>
@@ -443,9 +664,18 @@ function CategoryPromptsSection() {
                       </div>
                     </div>
 
+                    {/* 大カテゴリ知識ベース */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs text-muted flex items-center gap-1">
+                        <BookOpen size={11} />
+                        「{major.name}」の知識ベース
+                      </label>
+                      <KnowledgeFileUpload categoryId={major.id} compact />
+                    </div>
+
                     {/* 中カテゴリ一覧 */}
                     {minors.length > 0 && (
-                      <div className="flex flex-col gap-2 pl-3 border-l-2 border-border">
+                      <div className="flex flex-col gap-3 pl-3 border-l-2 border-border">
                         {minors.map((minor) => (
                           <div key={minor.id} className="flex flex-col gap-1.5">
                             <div className="flex items-center gap-2">
@@ -488,6 +718,15 @@ function CategoryPromptsSection() {
                                 {savingIds.has(minor.id) && <Loader2 size={11} className="animate-spin" />}
                                 保存
                               </button>
+                            </div>
+
+                            {/* 中カテゴリ知識ベース */}
+                            <div className="flex flex-col gap-1">
+                              <label className="text-xs text-muted flex items-center gap-1">
+                                <BookOpen size={11} />
+                                「{minor.name}」の知識ベース
+                              </label>
+                              <KnowledgeFileUpload categoryId={minor.id} compact />
                             </div>
                           </div>
                         ))}
@@ -557,211 +796,24 @@ function CategoryPromptsSection() {
 }
 
 // ─────────────────────────────────────────────
-// 知識ベースセクション
+// 知識ベースセクション（全カテゴリ共通）
 // ─────────────────────────────────────────────
 
-type KnowledgeFile = {
-  id: string;
-  filename: string;
-  storage_path: string;
-  mime_type: string;
-  size_bytes: number;
-  extracted_text: string | null;
-  created_at: string;
-};
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 function KnowledgeBaseSection() {
-  const [files, setFiles] = useState<KnowledgeFile[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
-
-  async function fetchFiles() {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("mikomiku_knowledge_files")
-      .select("id, filename, storage_path, mime_type, size_bytes, extracted_text, created_at")
-      .order("created_at", { ascending: false });
-    if (data) setFiles(data as KnowledgeFile[]);
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    (async () => {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("mikomiku_knowledge_files")
-        .select("id, filename, storage_path, mime_type, size_bytes, extracted_text, created_at")
-        .order("created_at", { ascending: false });
-      if (data) setFiles(data as KnowledgeFile[]);
-      setLoading(false);
-    })();
-  }, []);
-
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const selectedFiles = e.target.files;
-    if (!selectedFiles || selectedFiles.length === 0) return;
-
-    setUploading(true);
-    const supabase = createClient();
-
-    for (const file of Array.from(selectedFiles)) {
-      try {
-        const storagePath = `${Date.now()}-${file.name}`;
-
-        // 1. Storage にアップロード
-        const { error: storageError } = await supabase.storage
-          .from("mikomiku-knowledge")
-          .upload(storagePath, file);
-
-        if (storageError) {
-          console.error("[knowledge] storage upload error:", storageError);
-          continue;
-        }
-
-        // 2. テキスト抽出
-        let extractedText: string | null = null;
-        try {
-          const formData = new FormData();
-          formData.append("file", file);
-          const res = await fetch("/api/admin/extract-text", {
-            method: "POST",
-            body: formData,
-          });
-          if (res.ok) {
-            const json = await res.json();
-            extractedText = json.text ?? null;
-          }
-        } catch (extractErr) {
-          console.error("[knowledge] text extraction error:", extractErr);
-        }
-
-        // 3. メタデータを DB に保存
-        await supabase.from("mikomiku_knowledge_files").insert({
-          filename: file.name,
-          storage_path: storagePath,
-          mime_type: file.type,
-          size_bytes: file.size,
-          extracted_text: extractedText,
-          created_at: new Date().toISOString(),
-        });
-      } catch (err) {
-        console.error("[knowledge] upload error:", err);
-      }
-    }
-
-    // inputをリセット
-    e.target.value = "";
-    setUploading(false);
-    await fetchFiles();
-  }
-
-  async function deleteFile(file: KnowledgeFile) {
-    setDeletingIds((prev) => new Set(prev).add(file.id));
-    const supabase = createClient();
-
-    // Storage から削除
-    await supabase.storage.from("mikomiku-knowledge").remove([file.storage_path]);
-
-    // DB から削除
-    await supabase.from("mikomiku_knowledge_files").delete().eq("id", file.id);
-
-    setDeletingIds((prev) => {
-      const next = new Set(prev);
-      next.delete(file.id);
-      return next;
-    });
-    await fetchFiles();
-  }
-
   return (
     <div className="bg-surface border border-border rounded-xl p-5 flex flex-col gap-4">
       <div className="flex items-center gap-2">
         <BookOpen size={16} className="text-primary" />
         <h2 className="text-sm font-semibold text-foreground">
-          知識ベース
+          知識ベース（全カテゴリ共通）
         </h2>
       </div>
       <p className="text-xs text-muted leading-relaxed">
-        見込金額算出時にClaudeが参照する知識ファイルをアップロードします。PDF・テキスト・CSV・画像など各種形式に対応しています。
+        全カテゴリ共通でClaudeが参照する知識ファイルをアップロードします。PDF・テキスト・CSV・画像など各種形式に対応。
+        <br />
+        カテゴリ固有の知識は「カテゴリ別見込金額ロジック設定」の各カテゴリ内でアップロードしてください。
       </p>
-
-      {/* アップロードエリア */}
-      <div className="relative">
-        <label className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
-          {uploading ? (
-            <>
-              <Loader2 size={20} className="animate-spin text-primary" />
-              <span className="text-xs text-muted">アップロード中...</span>
-            </>
-          ) : (
-            <>
-              <Plus size={20} className="text-muted" />
-              <span className="text-sm text-foreground font-medium">ファイルを選択またはドロップ</span>
-              <span className="text-xs text-muted">対応形式: PDF, TXT, CSV, MD, JSON, PNG, JPG</span>
-            </>
-          )}
-          <input
-            type="file"
-            multiple
-            accept=".pdf,.txt,.csv,.md,.json,.png,.jpg,.jpeg,.webp"
-            onChange={handleFileChange}
-            disabled={uploading}
-            className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
-          />
-        </label>
-      </div>
-
-      {/* ファイル一覧 */}
-      {loading ? (
-        <div className="h-16 flex items-center justify-center">
-          <Loader2 size={16} className="animate-spin text-muted" />
-        </div>
-      ) : files.length === 0 ? (
-        <p className="text-xs text-muted text-center py-4">
-          アップロード済みのファイルはありません
-        </p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {files.map((file) => (
-            <div
-              key={file.id}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border bg-surface-2"
-            >
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-foreground truncate">{file.filename}</p>
-                <p className="text-xs text-muted mt-0.5">
-                  {formatBytes(file.size_bytes)} ·{" "}
-                  {file.extracted_text != null ? (
-                    <span className="text-green-600">テキスト抽出済み</span>
-                  ) : (
-                    <span className="text-muted">画像のみ保存</span>
-                  )}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => deleteFile(file)}
-                disabled={deletingIds.has(file.id)}
-                className="p-1.5 rounded hover:bg-red-50 hover:text-red-500 text-muted transition-colors disabled:opacity-50"
-                title="削除"
-              >
-                {deletingIds.has(file.id) ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <Trash2 size={13} />
-                )}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      <KnowledgeFileUpload categoryId={null} />
     </div>
   );
 }

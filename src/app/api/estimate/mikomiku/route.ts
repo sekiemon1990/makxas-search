@@ -30,6 +30,7 @@ type KnowledgeFileRow = {
   id: string;
   filename: string;
   extracted_text: string | null;
+  category_id: string | null;
 };
 
 export async function POST(req: Request) {
@@ -73,7 +74,7 @@ export async function POST(req: Request) {
 
     const { data: kfData } = await supabase
       .from("mikomiku_knowledge_files")
-      .select("id, filename, extracted_text")
+      .select("id, filename, extracted_text, category_id")
       .not("extracted_text", "is", null);
     if (kfData) knowledgeFiles = kfData as KnowledgeFileRow[];
   } catch (e) {
@@ -119,16 +120,51 @@ export async function POST(req: Request) {
     systemParts.push(categoryLines.join(""));
   }
 
-  // 知識ベース
-  if (knowledgeFiles.length > 0) {
-    const knowledgeParts = knowledgeFiles
-      .filter((f) => f.extracted_text)
-      .map((f) => `--- ${f.filename} ---\n${f.extracted_text}`)
-      .join("\n\n");
+  // 知識ベース（全体共通 + カテゴリ別をスコープ付きで渡す）
+  const globalKnowledge = knowledgeFiles.filter((f) => f.category_id === null && f.extracted_text);
+  const categoryKnowledge = knowledgeFiles.filter((f) => f.category_id !== null && f.extracted_text);
 
-    if (knowledgeParts) {
-      systemParts.push(`\n[知識ベース]\n${knowledgeParts}`);
+  if (globalKnowledge.length > 0 || categoryKnowledge.length > 0) {
+    const knowledgeParts: string[] = ["\n[知識ベース]"];
+
+    if (globalKnowledge.length > 0) {
+      knowledgeParts.push("\n<全体共通知識>");
+      for (const f of globalKnowledge) {
+        knowledgeParts.push(`--- ${f.filename} ---\n${f.extracted_text}`);
+      }
+      knowledgeParts.push("</全体共通知識>");
     }
+
+    if (categoryKnowledge.length > 0) {
+      // カテゴリIDでグループ化
+      const byCat = new Map<string, KnowledgeFileRow[]>();
+      for (const f of categoryKnowledge) {
+        if (!f.category_id) continue;
+        if (!byCat.has(f.category_id)) byCat.set(f.category_id, []);
+        byCat.get(f.category_id)!.push(f);
+      }
+
+      for (const [catId, catFiles] of byCat) {
+        const cat = categories.find((c) => c.id === catId);
+        if (!cat) continue;
+
+        let catLabel: string;
+        if (cat.level === "major") {
+          catLabel = `大カテゴリ「${cat.name}」固有知識`;
+        } else {
+          const major = categories.find((c) => c.id === cat.major_id);
+          catLabel = `中カテゴリ「${cat.name}」（${major?.name ?? ""}）固有知識`;
+        }
+
+        knowledgeParts.push(`\n<${catLabel}>`);
+        for (const f of catFiles) {
+          knowledgeParts.push(`--- ${f.filename} ---\n${f.extracted_text}`);
+        }
+        knowledgeParts.push(`</${catLabel}>`);
+      }
+    }
+
+    systemParts.push(knowledgeParts.join("\n"));
   }
 
   const systemPrompt = systemParts.join("\n");
