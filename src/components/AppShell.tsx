@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, History, Settings as SettingsIcon, ListChecks, Camera, LayoutDashboard } from "lucide-react";
+import { Search, History, Settings as SettingsIcon, ListChecks, Camera, LayoutDashboard, MapPin, Users } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { ListBar } from "./ListBar";
 
@@ -81,6 +81,18 @@ export function AppShell({
                 icon={<SettingsIcon size={16} />}
                 label="設定"
                 matchPrefix="/settings"
+              />
+              <TopNavItem
+                href="/visit"
+                icon={<MapPin size={16} />}
+                label="訪問前"
+                matchPrefix="/visit"
+              />
+              <TopNavItem
+                href="/customer"
+                icon={<Users size={16} />}
+                label="お客様向け"
+                matchPrefix="/customer"
               />
               <TopNavItem
                 href="/admin"

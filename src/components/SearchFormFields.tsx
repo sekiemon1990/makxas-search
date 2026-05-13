@@ -11,7 +11,9 @@ import {
   Mic,
   Camera,
   Loader2,
+  Barcode,
 } from "lucide-react";
+import { BarcodeScannerModal } from "@/components/BarcodeScannerModal";
 import { PlatformLogo } from "@/components/PlatformLogo";
 import { SOURCES, type SourceKey } from "@/lib/types";
 import { CONDITION_RANKS, CONDITION_META, type ConditionRank } from "@/lib/conditions";
@@ -434,6 +436,10 @@ export function SearchFormFields({
           onKeywordChange={(kw) => setKeyword(kw)}
           onSubmit={() => formRef.current?.requestSubmit()}
         />
+        <BarcodeButton
+          onKeywordChange={(kw) => setKeyword(kw)}
+          onSubmit={() => formRef.current?.requestSubmit()}
+        />
         </div>
       </div>
 
@@ -843,6 +849,42 @@ function CameraButton({
           <Camera size={18} />
         )}
       </button>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────
+// BarcodeButton: バーコードスキャン→キーワード自動入力
+// ─────────────────────────────────────────────
+
+function BarcodeButton({
+  onKeywordChange,
+  onSubmit,
+}: {
+  onKeywordChange: (kw: string) => void;
+  onSubmit: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="バーコードをスキャンして検索"
+        className="shrink-0 w-12 h-12 rounded-lg border border-border bg-surface text-muted hover:text-foreground hover:bg-surface-2 flex items-center justify-center transition-colors"
+      >
+        <Barcode size={18} />
+      </button>
+      {open && (
+        <BarcodeScannerModal
+          onDetected={(keyword) => {
+            onKeywordChange(keyword);
+            onSubmit();
+          }}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </>
   );
 }
