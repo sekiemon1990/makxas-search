@@ -162,15 +162,29 @@ git push -u origin main
 
 ---
 
-## Phase 3: Claude Desktop に Metabase MCP を登録
+## Phase 3: Claude に Metabase MCP を登録
 
-### 3-1. 設定ファイルを開く
+### 推奨：Claude Connectors UI（GUI）で設定する
+ClaudeにはビルトインのConnectors（コネクタ）UIがあり、`claude_desktop_config.json` を手動編集しなくても登録できる。フィールド構成（"Read-Only Mode" トグル、"Export Directory" 必須）から、内部で使われているMCPサーバーは **`jerichosequitin/metabase-mcp`** と推測される（user+pass認証対応）。
+
+#### 各フィールドの入力値
+
+| フィールド | 値 |
+|---|---|
+| **URL（必須）** | `http://metabase-zgnsj-env.ap-northeast-1.elasticbeanstalk.com` |
+| **API Key** | **空欄のまま**（Metabaseがv0.49より古くAPIキー非対応） |
+| **User Email** | Phase 1で作った専用サービスアカウントのメアド |
+| **Password** | Phase 1で作ったパスワード |
+| **Read-Only Mode** | **ON にする**（SELECTのみに制限。安全のため必須） |
+| **Export Directory（必須）** | デフォルトの `${DOWNLOADS}/Metabase` のままで可 |
+
+入力後「保存」→ コネクタが "無効" → "有効" に変わる。
+
+### 代替：手動JSON編集（Connectors UIが使えない場合のみ）
 ```bash
 mkdir -p ~/Library/Application\ Support/Claude
 open -e ~/Library/Application\ Support/Claude/claude_desktop_config.json
 ```
-
-ファイルが存在しなければ新規作成し、以下を記述：
 
 ```json
 {
@@ -187,10 +201,7 @@ open -e ~/Library/Application\ Support/Claude/claude_desktop_config.json
   }
 }
 ```
-
-### 3-2. Claude Desktop再起動
-- メニューバーから「Claude」→「Claude を終了」で**完全終了**
-- 再度起動（ドックの×だけだとMCP再読み込みされない）
+編集後はClaudeを**完全終了→再起動**（ドックの×ではダメ）。Connectors UIで設定した場合は再起動不要なことが多い。
 
 ### 3-3. 動作確認（チャット欄に投げる）
 1. 「Metabase MCPで使えるツール一覧を見せて」
@@ -263,9 +274,10 @@ open -e ~/Library/Application\ Support/Claude/claude_desktop_config.json
 - [ ] `~/dev/data-portal` にNext.js 16プロジェクトが作成済み
 - [ ] `npm run dev` で http://localhost:3000 が起動する
 - [ ] GitHub `sekiemon1990/data-portal` (Private) にpush済み
-- [ ] `~/Library/Application Support/Claude/claude_desktop_config.json` にMCP設定済み
-- [ ] Claude Desktopで「Metabase MCPツール一覧」が取得できる
-- [ ] Claude Desktopで「ダッシュボード一覧」が取得できる
+- [ ] Claude Connectors UIで metabase-mcp コネクタが **有効** 状態（または手動JSONでmcpServers設定済み）
+- [ ] Claude Connectors UI で Read-Only Mode が **ON**
+- [ ] Claude で「Metabase MCPツール一覧」が取得できる
+- [ ] Claude で「ダッシュボード一覧」が取得できる
 - [ ] `data-portal/CLAUDE.md` にコンテキスト引き継ぎ情報を記載
 
 ---
