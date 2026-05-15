@@ -1,130 +1,155 @@
-# 新しいローカルセッションに渡すプロンプト
+# 新しいセッションに渡すプロンプト（最新版）
 
-下の `===== ここから =====` から `===== ここまで =====` の間を**まるごとコピペ**して、Macで起動したClaude Code（CLI）の最初のメッセージとして送ってください。
+このファイルには2種類のプロンプトが入っています。状況に応じて使い分けてください：
+
+- **【A】Mac側のClaude Codeセッション用**（実際に環境構築を進める）
+- **【B】サンドボックス側で続きをする場合**（追加で何か準備物を作りたい場合）
 
 ---
 
-===== ここから =====
+## 【A】Mac側のClaude Codeで実行するプロンプト
+
+下の `===== A: ここから =====` から `===== A: ここまで =====` をまるごとコピペして、**Macのターミナル**で起動したClaude Code（CLI）の最初のメッセージとして送ってください。
+
+```
+===== A: ここから =====
 
 # タスク：MacにMetabase MCP連携の開発環境をセットアップしてほしい
 
+## 現状
+前セッションで以下が準備済み（リポジトリ `sekiemon1990/makxas-search` のブランチ `claude/metabase-integration-exploration-nmM4X` に格納）：
+
+- `scripts/setup-data-portal.sh` — Mac自動セットアップスクリプト
+- `docs/metabase-readonly-account-guide.md` — Metabase専用アカウント作成ガイド
+- `docs/metabase-mcp-setup.md` — 全体プラン
+- `docs/data-portal-templates/` — 新リポジトリ用テンプレ4ファイル
+- `docs/new-session-prompt.md` — このファイル
+
 ## ゴール
-1. このMac（macOS）に、Claude Desktop経由で社内Metabaseを叩けるMCPサーバー `@imlewc/metabase-server` を接続する
-2. その隣に、将来「経営層向け自然言語ダッシュボード」を作るための新Next.jsリポジトリ `sekiemon1990/data-portal` を立ち上げてGitHubにpushする
-3. 最終的に、Claude Desktopのチャット欄から「Metabaseのダッシュボード一覧見せて」と聞いて答えが返る状態にする
+1. 上記リポジトリをMacにcloneして準備物を取得
+2. Metabaseに専用read-onlyアカウントを作成（ガイド参照）
+3. セットアップスクリプトを実行して `sekiemon1990/data-portal`（Private）を立ち上げ
+4. ClaudeのConnectors UIでMetabase MCPを有効化
+5. 「Metabaseのダッシュボード一覧見せて」で答えが返ることを確認
 
-## 前提・確定済み事項
-以下は前セッションで決定済み。**質問せず、この設定で進めてOK**：
+## 進め方
 
-- ローカル環境：macOS
-- 自社Metabase：AWS Elastic Beanstalk上のセルフホスト、**v0.49より古い**（APIキー機能なし）
-- Metabase URL：`http://metabase-zgnsj-env.ap-northeast-1.elasticbeanstalk.com`
-- 認証方式：**user+passでセッショントークン**（MCPサーバー側が自動処理）
-- 採用MCPサーバー：`@imlewc/metabase-server`（npm配布、user+pass認証対応）
-- 新リポジトリ名：`sekiemon1990/data-portal`（**Private**）
-- Next.js：**16系**（TypeScript、Tailwind、App Router、`--no-src-dir`、import alias `@/*`）
-- MCPクライアント：**Claude Desktop**
-
-## 参照資料
-私が前セッションで作った詳細プランとテンプレートは以下にあります。**最初にこれをcloneしてREADする**こと：
-
+### Step 1: リポジトリ取得
 ```bash
 git clone git@github.com:sekiemon1990/makxas-search.git ~/dev/makxas-search
 cd ~/dev/makxas-search
 git checkout claude/metabase-integration-exploration-nmM4X
 ```
 
-重要ファイル：
-- `docs/metabase-mcp-setup.md` — 全体プラン
-- `docs/data-portal-templates/CLAUDE.md` — 新リポジトリ用CLAUDE.mdテンプレ
-- `docs/data-portal-templates/README.md` — 新リポジトリ用READMEテンプレ
-- `docs/data-portal-templates/.env.local.example` — env例
-- `docs/data-portal-templates/claude_desktop_config.json` — Claude Desktop MCP設定テンプレ
+### Step 2: Metabase専用アカウント作成（人間が手動でやる）
+`docs/metabase-readonly-account-guide.md` をユーザーに開いて見せ、手順通りに作るよう案内する。
+ユーザーがアカウント作成完了したら、**メアドとパスワードを聞いて控えておく**（Step 3で使う）。
 
-## 進め方
-
-### Step 0: 環境の事前確認（自動検出）
-以下を実行して、既に入っているものは飛ばす：
+### Step 3: セットアップスクリプト実行
 ```bash
-brew --version 2>/dev/null && echo "✅ brew" || echo "❌ brew要"
-node -v 2>/dev/null && echo "✅ node" || echo "❌ node要"
-gh --version 2>/dev/null && echo "✅ gh" || echo "❌ gh要"
-ls /Applications/Claude.app 2>/dev/null && echo "✅ Claude Desktop" || echo "❌ Claude Desktop要"
+./scripts/setup-data-portal.sh
 ```
-不足分はインストールを案内する。**勝手にbrew installしない** — 必要なものをリストアップして「これとこれを入れていいですか？」と私に確認してから実行する。
+スクリプトは対話形式。各破壊的操作の前にy/N確認が出る。スクリプト内でユーザーにMetabaseのメアドとパスワードを聞かれるので、Step 2で控えた値を入れる。
 
-### Step 1: 私に確認してほしいこと
-以下は私が手動でやる/用意する必要があるので、進める前に聞いてほしい：
+スクリプトが自動でやること：
+- brew/node/gh/Claude.app の検出（未インストールならガイド）
+- `~/dev/data-portal` にNext.js 16プロジェクト生成
+- 依存パッケージインストール
+- テンプレ4ファイルコピー
+- `.env.local` 対話作成（パスワード非表示入力、chmod 600）
+- `gh repo create sekiemon1990/data-portal --private` で作成 & push
 
-1. **Metabaseに専用read-onlyアカウントを作ったか？**
-   - メアドとパスワードを `.env.local` と `claude_desktop_config.json` に入れる必要がある
-   - 未作成なら、私にMetabase管理画面での作り方を案内してほしい
-2. **GitHubで `sekiemon1990/data-portal` リポジトリは未作成のままでよいか？**（`gh repo create` で作る）
+### Step 4: ClaudeのConnectors UIでMetabase MCP有効化（人間が手動）
+スクリプト完了時に表示される値を、ClaudeのConnectors UIに入力：
+- URL: `http://metabase-zgnsj-env.ap-northeast-1.elasticbeanstalk.com`
+- API Key: 空欄
+- User Email: Step 2で作ったメアド
+- Password: Step 2で作ったパスワード
+- Read-Only Mode: ON
+- Export Directory: デフォルトのまま
 
-### Step 2: 新Next.jsプロジェクト作成
-```bash
-mkdir -p ~/dev
-cd ~/dev
-npx create-next-app@latest data-portal \
-  --typescript --app --tailwind --no-src-dir --import-alias "@/*"
-cd data-portal
-```
+### Step 5: 動作確認
+Claudeチャットで以下を投げる：
+1. 「Metabase MCPで使えるツール一覧を見せて」
+2. 「Metabaseのダッシュボード一覧を取得して」
+3. 「Coreデータ分析コレクションのカードを教えて」
 
-`~/dev/makxas-search/docs/data-portal-templates/` のテンプレ4ファイルを `data-portal/` にコピー：
-```bash
-cp ~/dev/makxas-search/docs/data-portal-templates/CLAUDE.md ./
-cp ~/dev/makxas-search/docs/data-portal-templates/README.md ./
-cp ~/dev/makxas-search/docs/data-portal-templates/.env.local.example ./
-```
+すべて答えが返ればゴール達成。
 
-`.env.local` を作成（コミット禁止）：
-```bash
-cp .env.local.example .env.local
-# 私に METABASE_PASSWORD の値を聞いて、.env.local を編集してほしい
-```
+## 振る舞いのお願い
+- **勝手に進めない**：パスワード入力やGitHubリポ作成等、不可逆な操作の前は必ず確認
+- **詰まったら止める**：エラー出たら自分で深掘りせず全文を見せて「どうしますか？」
+- **既存ファイルは壊さない**：上書き前に確認
+- **Connectors UIの操作はユーザーがやる**：スクリプトでは触れない領域
 
-任意の追加依存：
-```bash
-npm install @supabase/ssr @supabase/supabase-js @anthropic-ai/sdk lucide-react clsx tailwind-merge
-```
-
-### Step 3: GitHubにPrivateリポジトリ作成 & push
-```bash
-gh repo create sekiemon1990/data-portal --private --source=. --remote=origin
-git add .
-git commit -m "Initial commit: Next.js 16 + Metabase連携の足場"
-git push -u origin main
-```
-
-### Step 4: Claude DesktopにMCP登録
-`~/dev/makxas-search/docs/data-portal-templates/claude_desktop_config.json` の中身を `~/Library/Application Support/Claude/claude_desktop_config.json` に書き込む。**METABASE_PASSWORD を私に聞いて実値を入れる**こと。
-
-既存の `claude_desktop_config.json` がある場合は破壊せず `mcpServers` キーに追記マージする。
-
-### Step 5: Claude Desktop完全再起動と動作確認
-- 「Claude」メニュー → 「Claudeを終了」で**完全終了**（ドックの×ではダメ）
-- 再起動
-- **私の方でClaude Desktopのチャット欄に以下を投げて確認する**：
-  1. 「Metabase MCPで使えるツール一覧を見せて」
-  2. 「Metabaseのダッシュボード一覧を取得して」
-  3. 「`Coreデータ分析` コレクションのカード一覧を見せて」
-
-## 各ステップでの振る舞い
-
-- **勝手に進めない**：パスワード入力、`brew install`、`gh repo create`、ファイル上書き等、不可逆な操作の前は必ず私に確認する
-- **何が必要かを先に言う**：「次にXとYをします、いいですか？」のスタイル
-- **詰まったら止める**：エラーが出たら自分で深掘りせず、エラー全文を見せて「どうしますか？」と聞く
-- **ファイル編集は最小**：既存ファイルがある時は壊さずに追記マージする
-
-## 完了条件（このセッションのゴール）
-- [ ] `node -v` が成功する
-- [ ] Claude Desktopがインストール済み・ログイン済み
+## 完了条件
 - [ ] `~/dev/data-portal` にNext.js 16プロジェクトがある
-- [ ] `npm run dev` で http://localhost:3000 が開く
-- [ ] GitHub `sekiemon1990/data-portal` (Private) が作成済み、初回commitがpush済み
-- [ ] `~/Library/Application Support/Claude/claude_desktop_config.json` にmetabase-server設定が入っている
-- [ ] Claude Desktopを再起動して「ダッシュボード一覧見せて」で答えが返る
+- [ ] `npm run dev` で http://localhost:3000 が起動
+- [ ] GitHub `sekiemon1990/data-portal`（Private）にpush済み
+- [ ] ClaudeのConnectors UIで `metabase-mcp` が「有効」状態、Read-Only Mode: ON
+- [ ] Claudeで「Metabaseのダッシュボード一覧見せて」が動く
 
-全部できたら一言「全フェーズ完了」と教えてほしいです。
+完了したら「全フェーズ完了」と教えて。
 
-===== ここまで =====
+===== A: ここまで =====
+```
+
+---
+
+## 【B】サンドボックス側で続きをする場合のプロンプト
+
+もし「追加で別の準備物を作りたい」「経営層向けダッシュボードの実装を始めたい」など、**ローカル作業に進む前にサンドボックスでもう少し作りたいことがある場合**は、下記を新サンドボックスセッションに渡してください。
+
+```
+===== B: ここから =====
+
+# 現状サマリ（前セッションからの引き継ぎ）
+
+リポジトリ `sekiemon1990/claude-code`（GitHub上の正式名は `sekiemon1990/makxas-search`）の
+ブランチ `claude/metabase-integration-exploration-nmM4X` で、社内Metabase連携の
+立ち上げ準備を進めてきた。
+
+## これまで合意・確定した事項
+- Metabase: AWS Elastic Beanstalk、v0.49より古い、HTTP、URL = http://metabase-zgnsj-env.ap-northeast-1.elasticbeanstalk.com
+- ローカル環境: macOS
+- 新リポジトリ: sekiemon1990/data-portal（Private、Next.js 16）
+- MCPクライアント: Claude Desktop の Connectors UI
+- 採用MCPサーバー: jerichosequitin/metabase-mcp（Connectors UI経由）または @imlewc/metabase-server（手動JSON）
+- 認証: 専用read-onlyアカウント（user+passでセッショントークン）
+- 経営層向け自然言語UI: 別フェーズ、Anthropic SDK + Tool Useで data-portal リポに実装予定
+
+## 既に用意済みの成果物（このリポジトリ内）
+- docs/metabase-mcp-setup.md — 全体プラン（Phase 0〜4）
+- docs/metabase-readonly-account-guide.md — Metabase専用アカウント作成手順
+- docs/data-portal-templates/ — 新リポジトリ用テンプレ
+  - CLAUDE.md / README.md / .env.local.example / claude_desktop_config.json
+- scripts/setup-data-portal.sh — Mac側で実行する自動セットアップスクリプト
+- docs/new-session-prompt.md — このプロンプト（Mac側Claude Code用 + サンドボックス用）
+
+## サンドボックスの制約（できないこと）
+- ❌ macOSローカル操作（brew install、Claude Desktop操作等）
+- ❌ ユーザーのMetabaseへの直接アクセス
+- ❌ ClaudeのConnectors UIへの直接入力
+- ❌ sekiemon1990/data-portal リポジトリ作成（GitHub MCPは claude-code のみスコープ）
+
+## サンドボックスでできること
+- このリポジトリへのファイル追加・編集・コミット・push
+- ドキュメント、スクリプト、テンプレートの整備
+- 経営層向けダッシュボードのコード設計（コミット先は当面 claude-code リポか、後で data-portal が出来てから移す）
+
+## 私からのお願い
+やりたいタスクを伝えるので、サンドボックスでできる範囲で進めて。
+できない作業に当たったら、それを正直に伝えて代替案を提示して。
+
+===== B: ここまで =====
+```
+
+---
+
+## どちらを選ぶか迷ったら
+
+| 状況 | おすすめ |
+|---|---|
+| **Mac側で実際に環境構築を進めたい** | 【A】 |
+| **Macの作業はまだ後でやる、追加で準備物だけ欲しい** | 【B】 |
+| **両方やりたい** | 先に【A】（メイン）、必要があれば【B】を後で |
