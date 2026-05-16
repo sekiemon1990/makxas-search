@@ -5,8 +5,11 @@ import type { ContractedProject } from "@/lib/core-rails/client";
 
 const METHOD_LABELS: Record<string, string> = {
   visit: "出張",
+  by_visit: "出張",
   store: "店頭",
+  by_store: "店頭",
   mail: "宅配",
+  by_mail: "宅配",
 };
 
 export function ContractedProjectsPanel() {
