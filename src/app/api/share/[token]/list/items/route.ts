@@ -55,11 +55,19 @@ export async function POST(
     return NextResponse.json({ error: "編集権限がありません" }, { status: 403 });
   }
 
-  const body = await req.json();
+  const body = (await req.json()) as {
+    keyword?: string;
+    excludes?: string;
+    period?: string;
+    sources?: string[];
+    conditions?: string[];
+    shipping?: string;
+  };
+  const { keyword, excludes, period, sources, conditions, shipping } = body;
   const service = createServiceClient();
   const { data, error } = await service
     .from("list_items")
-    .insert({ ...body, list_id: shareToken.resource_id })
+    .insert({ keyword, excludes, period, sources, conditions, shipping, list_id: shareToken.resource_id })
     .select()
     .single();
 
