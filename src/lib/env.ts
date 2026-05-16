@@ -67,6 +67,19 @@ export const serverEnv = {
   get COST_VIEWER_EMAILS(): string {
     return process.env.COST_VIEWER_EMAILS ?? "";
   },
+  /** core-rails GraphQL エンドポイント（開発時は http://localhost:3000） */
+  get CORE_RAILS_URL(): string {
+    return process.env.CORE_RAILS_URL ?? "";
+  },
+  get CORE_RAILS_GRAPHQL_USER(): string {
+    return process.env.CORE_RAILS_GRAPHQL_USER ?? "";
+  },
+  get CORE_RAILS_GRAPHQL_PASS(): string {
+    return process.env.CORE_RAILS_GRAPHQL_PASS ?? "";
+  },
+  get CORE_RAILS_API_TOKEN(): string {
+    return process.env.CORE_RAILS_API_TOKEN ?? "";
+  },
 } as const;
 
 /**

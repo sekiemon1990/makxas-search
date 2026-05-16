@@ -13,6 +13,7 @@ import {
 } from "@/components/SearchFormFields";
 import { SOURCES, type SourceKey } from "@/lib/types";
 import { useLastResultUrl } from "@/lib/storage";
+import { ContractedProjectsPanel } from "@/components/core-rails/ContractedProjectsPanel";
 
 const VALID_PERIODS: Period[] = PERIOD_OPTIONS.map((p) => p.v);
 const VALID_SOURCES: SourceKey[] = SOURCES.map((s) => s.key);
@@ -73,6 +74,8 @@ function SearchContent() {
             <li>・ 媒体を増やすほど取得時間が長くなります</li>
           </ul>
         </section>
+
+        <ContractedProjectsPanel />
       </div>
     </AppShell>
   );
