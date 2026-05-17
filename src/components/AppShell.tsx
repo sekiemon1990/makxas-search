@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, History, Settings as SettingsIcon, ListChecks, Camera, LayoutDashboard } from "lucide-react";
+import { Search, History, Settings as SettingsIcon, ListChecks, Camera, LayoutDashboard, Lightbulb } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { ListBar } from "./ListBar";
 
@@ -83,6 +83,12 @@ export function AppShell({
                 matchPrefix="/settings"
               />
               <TopNavItem
+                href="/suggest"
+                icon={<Lightbulb size={16} />}
+                label="提案"
+                matchPrefix="/suggest"
+              />
+              <TopNavItem
                 href="/admin"
                 icon={<LayoutDashboard size={16} />}
                 label="管理"
@@ -119,16 +125,16 @@ export function AppShell({
               matchPrefix="/list"
             />
             <NavItem
-              href="/session"
-              icon={<Camera size={22} />}
-              label="撮影査定"
-              matchPrefix="/session"
+              href="/suggest"
+              icon={<Lightbulb size={20} />}
+              label="提案"
+              matchPrefix="/suggest"
             />
             <NavItem
-              href="/history"
-              icon={<History size={20} />}
-              label="履歴"
-              matchPrefix="/history"
+              href="/session"
+              icon={<Camera size={22} />}
+              label="撮影"
+              matchPrefix="/session"
             />
             <NavItem
               href="/settings"
