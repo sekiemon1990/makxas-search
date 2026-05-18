@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { getRequestUserId, logApiUsage } from "@/lib/api-cost";
+import { requireApiAuth } from "@/lib/auth/requireApiAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -113,6 +114,12 @@ function summarizeListings(body: RequestBody): string {
 }
 
 export async function POST(req: Request) {
+  // 認可ゲート: 未ログイン → 401
+  // Anthropic API はコールあたりコストが発生するため、認証済みユーザーに限定。
+  const gate = await requireApiAuth();
+  if (!gate.ok) return gate.response;
+
+  // レート制限 (認可済みユーザーでも過剰呼出を防止)
   const limited = enforceRateLimit(req, "ai:advisor", 20);
   if (limited) return limited;
 
