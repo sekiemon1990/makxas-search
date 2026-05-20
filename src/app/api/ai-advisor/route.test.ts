@@ -80,6 +80,13 @@ const fakeAdvice = {
     { rank: "状態D", rate: 0.3, price: 7000 },
   ],
   warnings: ["箱・付属品の有無を確認"],
+  additionalCategories: [
+    {
+      category: "貴金属",
+      reason: "ブランドバッグ所有者は貴金属も持っていることが多い",
+      searchKeyword: "K18 金 指輪",
+    },
+  ],
 };
 
 describe("/api/ai-advisor POST", () => {

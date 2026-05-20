@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Loader2, Star, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { Sparkles, Loader2, Star, AlertCircle, Target } from "lucide-react";
 import {
   saveAdvice,
   removeSavedAdvice,
@@ -20,10 +21,17 @@ type Props = {
   listings: FlatListing[];
 };
 
+type AdditionalCategory = {
+  category: string;
+  reason: string;
+  searchKeyword: string;
+};
+
 type Advice = {
   summary: string;
   recommendations: { rank: string; price: number; rate: number }[];
   warnings: string[];
+  additionalCategories?: AdditionalCategory[];
 };
 
 async function fetchAdvice(
@@ -216,6 +224,46 @@ export function AiAdvisor({ keyword, productGuess, listings }: Props) {
               ))}
             </ul>
           </div>
+
+          {/* 思想：レバー2 — 入口商品から推測される追加買取カテゴリ */}
+          {advice.additionalCategories && advice.additionalCategories.length > 0 && (
+            <div>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Target size={12} className="text-amber-600 dark:text-amber-500" />
+                <div className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">
+                  狙うべき追加買取カテゴリ
+                </div>
+                <span className="text-[10px] text-muted">
+                  この顧客に提案すべき商材
+                </span>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {advice.additionalCategories.map((c, i) => (
+                  <div
+                    key={`${c.category}-${i}`}
+                    className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                          {c.category}
+                        </div>
+                        <div className="text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed mt-0.5">
+                          {c.reason}
+                        </div>
+                      </div>
+                      <Link
+                        href={`/search?keyword=${encodeURIComponent(c.searchKeyword)}`}
+                        className="shrink-0 inline-flex items-center gap-0.5 text-[11px] px-2 py-1 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800/50 font-medium"
+                      >
+                        相場↗
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <button
             type="button"
