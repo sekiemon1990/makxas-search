@@ -8,8 +8,10 @@ import {
   type RankedSuggestItem,
   MOTIVATION_LABELS,
   AGE_LABELS,
+  MOTIVATION_TO_BACKGROUND_CODE,
   getSuggestions,
 } from "@/lib/suggest/data";
+import { RealDataPanel } from "./RealDataPanel";
 
 const PRIORITY_COLORS: Record<number, string> = {
   4: "bg-red-100 text-red-700 border-red-200",
@@ -186,6 +188,22 @@ export function CustomerSuggester() {
           <div className="mt-3 text-xs text-muted text-right">
             確認済み {checked.size} / {suggestions.length} 商材
           </div>
+        </section>
+      )}
+
+      {/* 過去実成約データ（動機が選択されたら表示） */}
+      {motivation && (
+        <section>
+          <h3 className="text-sm font-semibold text-foreground mb-2">
+            実データで検証
+          </h3>
+          <RealDataPanel
+            filterBackgroundCode={MOTIVATION_TO_BACKGROUND_CODE[motivation][0]}
+            days={90}
+          />
+          <p className="text-xs text-muted mt-1.5">
+            ※ core-rails の成約案件を集計。本番環境では staging core-rails 接続後に表示。
+          </p>
         </section>
       )}
 

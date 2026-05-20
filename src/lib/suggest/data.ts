@@ -29,6 +29,15 @@ export const MOTIVATION_LABELS: Record<Motivation, { label: string; sub: string;
   replacement: { label: "買い換え", sub: "特定商品のみ", emoji: "🔄" },
 };
 
+// core-rails の backgroundCode と内部 Motivation のマッピング
+// （実際の core-rails backgroundCode 値が判明次第、随時拡充する）
+export const MOTIVATION_TO_BACKGROUND_CODE: Record<Motivation, string[]> = {
+  inheritance: ["inheritance", "estate", "death", "遺品整理", "相続"],
+  moving: ["moving", "relocation", "引越し", "転居"],
+  declutter: ["declutter", "cleanup", "片付け", "断捨離"],
+  replacement: ["replacement", "renewal", "買い換え"],
+};
+
 export const AGE_LABELS: Record<AgeGroup, { label: string; sub: string }> = {
   senior70: { label: "60代以上", sub: "貴金属・ブランド・時計が多い" },
   middle50: { label: "40〜50代", sub: "ブランド・カメラ・時計" },
