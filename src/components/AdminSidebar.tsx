@@ -9,6 +9,7 @@ import {
   Home,
   Lock,
   Settings,
+  Target,
 } from "lucide-react";
 
 // ──────────────────────────────────────────────
@@ -100,6 +101,13 @@ export function AdminSidebar({ hasCostAccess, userEmail }: Props) {
             icon={<Users size={15} />}
           >
             ユーザー行動詳細
+          </NavItem>
+          <NavItem
+            href="/admin/additional-buying"
+            active={pathname === "/admin/additional-buying"}
+            icon={<Target size={15} />}
+          >
+            追加買取トラッキング
           </NavItem>
 
           {/* コスト詳細：COST_VIEWER_EMAILS のユーザーのみ表示 */}

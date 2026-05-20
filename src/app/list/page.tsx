@@ -53,6 +53,7 @@ import {
   saveCurrentAndCreateNew,
   addItemToList,
   updateItemNotes,
+  updateItemIsAdditional,
   reorderItems,
   type ListItem,
 } from "@/lib/list";
@@ -557,6 +558,27 @@ function CompletedCard({ item, dragHandleProps }: { item: ListItem; dragHandlePr
           </span>
         </div>
         </Link>
+      </div>
+
+      {/* 追加買取トグル（思想：レバー2 トラッキング） */}
+      <div className="border-t border-border bg-surface-2 px-3 py-1.5 flex items-center justify-between gap-2">
+        <span className="text-[11px] text-muted">入口商品 / 追加買取</span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            updateItemIsAdditional(item.id, !item.isAdditional);
+          }}
+          className={
+            item.isAdditional
+              ? "inline-flex items-center gap-1 h-6 px-2 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-700"
+              : "inline-flex items-center gap-1 h-6 px-2 rounded-full text-[10px] font-medium bg-surface text-muted border border-border hover:text-foreground"
+          }
+          aria-label={item.isAdditional ? "追加買取（タップで入口商品に）" : "入口商品（タップで追加買取に）"}
+        >
+          {item.isAdditional ? "🎯 追加買取" : "・ 入口商品"}
+        </button>
       </div>
 
       {/* メモ表示 */}

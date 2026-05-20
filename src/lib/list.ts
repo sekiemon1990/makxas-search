@@ -373,6 +373,15 @@ export async function updateItemNotes(itemId: string, notes: string): Promise<vo
   invalidateAll();
 }
 
+/** 追加買取フラグの更新（思想：レバー2トラッキング） */
+export async function updateItemIsAdditional(
+  itemId: string,
+  isAdditional: boolean
+): Promise<void> {
+  await updateListItem(itemId, { isAdditional });
+  invalidateAll();
+}
+
 export async function reorderItems(orders: { id: string; sortOrder: number }[]): Promise<void> {
   await updateItemsSortOrder(orders);
   invalidateAll();
