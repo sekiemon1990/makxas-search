@@ -58,3 +58,65 @@ A = git・短時間 / B = dev server / C = log 監視 / D = スクラッチ
 
 ### 業務クリティカル度
 - 誤操作による損失リスク: **高** (スタッフの査定判断ツール。ダウン = 査定業務停止)
+
+---
+
+## よく使うコマンド
+
+- `npm run dev` — 開発サーバー起動（port 3000）
+- `npm run build` — 本番ビルド
+- `npm run lint` — ESLint チェック
+- `npx tsc --noEmit` — 型チェック
+
+## Codex CLI との分業
+
+このプロジェクトでは Claude Code と Codex CLI を **タスクの規模・難易度で使い分ける**。コピペ往復を避けるため、`/codex` および `/codex-review` スラッシュコマンドで Codex を直接呼び出す。
+
+### 役割分担の判断基準
+
+- **小〜中規模の実装・修正・調査** → Claude Code が直接実装（Codex 委譲しない）
+- **大規模／設計が複雑な実装** → Claude Code は設計・指示作成・レビューに専念し、Codex に実装を委譲
+
+委譲するかどうかはユーザーから明示指示がある場合のみ Codex を使う。ユーザーが指示していないのに勝手に Codex に委譲しないこと。
+
+### Codex 委譲時のフロー
+
+1. Claude Code 側で要件を整理し、Codex に渡す指示文（必要なファイル内容・型定義・受け入れ基準を含む）を作成する
+2. `/codex <指示>` で Codex に実装させ、出力を取り込む
+3. 取り込んだ実装を Claude Code 側でレビューし、必要なら修正・追加指示
+4. 大きめの差分は `/codex-review` で Codex 側にもクロスレビューさせると盲点が減る
+
+### 暴走防止ルール（必ず守る）
+
+- 同一タスクで `/codex` 往復は最大 3 回まで。4 回目以降は人間に判断を仰ぐ
+- 1 PR は概ね 300 行以内。超えそうなら Issue を分割する
+- 受け入れ条件にない変更は実装しない（範囲外への拡張禁止）
+- Supabase RLS の権限緩和、依存関係のメジャーバージョン更新、CI 設定変更は人間の承認必須
+
+## GitHub 運用
+
+- Issue は `.github/ISSUE_TEMPLATE/` のテンプレートに従う
+- PR は `.github/pull_request_template.md` に従う。1 Issue = 1 PR、本文に `Closes #N` を必ず書く
+- ラベル運用: `needs-design` / `ready-for-codex` / `in-progress` / `needs-review` / `blocked`
+- コミットメッセージ: `feat:` `fix:` `chore:` `docs:` `refactor:` のいずれかをプレフィックス
+
+### Codex に指示を渡すときの注意
+
+- Codex は別セッションでリポジトリ状態を共有しないため、関連ファイルの内容や型定義をプロンプトに含める
+- ファイル編集まで自動で行わせる場合は `codex --full-auto` を使う（既定は読み取りのみ）
+- 認証エラー時は `codex login status` を確認
+
+## コーディング規約
+
+- TypeScript 必須。`any` は禁止、Supabase データには `supabase gen types` で生成した型を使う
+- スクレイピングロジック（cheerio）は `lib/scraper/` または `lib/` 配下にまとめる
+- Anthropic API コールはサーバーサイド（Route Handler）のみ。クライアントサイドから直接呼ばない
+- API キーはすべて `.env.local` 管理（`process.env` でアクセス）
+
+## やってはいけないこと
+
+- `.env.local` / `.env` のコミット（`git add -f` 等での強制追加も禁止）
+- Supabase RLS ポリシーの権限緩和 → ユーザー承認必須
+- Anthropic API キーのクライアントサイドへの露出（`NEXT_PUBLIC_` プレフィックス禁止）
+- 依存パッケージのメジャーバージョン更新 → 動作確認なしでの実施禁止
+- 本番 Supabase プロジェクトへのスキーマ変更（DROP / ALTER）は明示指示があるときのみ

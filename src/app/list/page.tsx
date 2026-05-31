@@ -17,6 +17,7 @@ import {
   Wifi,
   StickyNote,
   GripVertical,
+  FileDown,
 } from "lucide-react";
 import {
   DndContext,
@@ -52,6 +53,7 @@ import {
   saveCurrentAndCreateNew,
   addItemToList,
   updateItemNotes,
+  updateItemIsAdditional,
   reorderItems,
   type ListItem,
 } from "@/lib/list";
@@ -69,6 +71,7 @@ export default function ListPage() {
   const [renameOpen, setRenameOpen] = useState(false);
   const [sortedCompleted, setSortedCompleted] = useState<ListItem[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("mixed");
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const running = list.items.filter((i) => i.status === "running");
   const queued = list.items.filter((i) => i.status === "queued");
@@ -114,6 +117,38 @@ export default function ListPage() {
     clearCurrentList();
     setConfirmClear(false);
     toast({ message: "リストをクリアしました" });
+  }
+
+  async function handlePdfDownload() {
+    setPdfLoading(true);
+    try {
+      const [{ pdf }, { AppraisalPdf }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("@/components/pdf/AppraisalPdf"),
+      ]);
+      const now = new Date().toLocaleDateString("ja-JP", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+      const blob = await pdf(
+        <AppraisalPdf
+          listName={list.name ?? "査定リスト"}
+          items={completed}
+          generatedAt={now}
+        />
+      ).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "査定書.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setPdfLoading(false);
+    }
   }
 
   return (
@@ -275,16 +310,32 @@ export default function ListPage() {
               <section className="bg-gradient-to-br from-primary to-accent text-primary-foreground rounded-xl p-5 mt-2">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs opacity-90">
-                    合計推奨買取額（{completed.length}件）
+                    合計見込金額（{completed.length}件）
                   </span>
                   <span className="text-[10px] opacity-75">
-                    中央値 × 70% で算出
+                    Claude が算出
                   </span>
                 </div>
                 <div className="text-3xl font-bold tracking-tight">
                   {formatYen(total)}
                 </div>
               </section>
+            )}
+
+            {completed.length > 0 && (
+              <button
+                type="button"
+                onClick={handlePdfDownload}
+                disabled={pdfLoading}
+                className="flex items-center gap-2 w-full justify-center px-4 py-2.5 rounded-xl border border-border bg-surface text-sm font-medium text-foreground hover:bg-surface-2 disabled:opacity-50 transition-colors"
+              >
+                {pdfLoading ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <FileDown size={15} />
+                )}
+                査定書PDF
+              </button>
             )}
 
             <section className="grid grid-cols-2 gap-2 pt-2">
@@ -497,7 +548,7 @@ function CompletedCard({ item, dragHandleProps }: { item: ListItem; dragHandlePr
         </div>
         <div className="flex items-center justify-between gap-2 text-xs">
           <span className="text-muted">
-            推奨買取
+            見込金額
             <span className="ml-1 font-bold text-success">
               {formatYen(r.suggestedBuyPrice)}
             </span>
@@ -507,6 +558,27 @@ function CompletedCard({ item, dragHandleProps }: { item: ListItem; dragHandlePr
           </span>
         </div>
         </Link>
+      </div>
+
+      {/* 追加買取トグル（思想：レバー2 トラッキング） */}
+      <div className="border-t border-border bg-surface-2 px-3 py-1.5 flex items-center justify-between gap-2">
+        <span className="text-[11px] text-muted">入口商品 / 追加買取</span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            updateItemIsAdditional(item.id, !item.isAdditional);
+          }}
+          className={
+            item.isAdditional
+              ? "inline-flex items-center gap-1 h-6 px-2 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-700"
+              : "inline-flex items-center gap-1 h-6 px-2 rounded-full text-[10px] font-medium bg-surface text-muted border border-border hover:text-foreground"
+          }
+          aria-label={item.isAdditional ? "追加買取（タップで入口商品に）" : "入口商品（タップで追加買取に）"}
+        >
+          {item.isAdditional ? "🎯 追加買取" : "・ 入口商品"}
+        </button>
       </div>
 
       {/* メモ表示 */}

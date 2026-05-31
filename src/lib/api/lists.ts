@@ -46,6 +46,7 @@ export type ListItem = {
   notes?: string;
   sortOrder?: number;
   itemType?: "search" | "listing";
+  isAdditional?: boolean; // 追加買取フラグ（思想：レバー2 トラッキング）
 };
 
 export type AppraisalList = {
@@ -95,6 +96,7 @@ type ItemRow = {
   notes: string | null;
   sort_order: number | null;
   item_type: string | null;
+  is_additional: boolean | null;
 };
 
 function rowToItem(row: ItemRow): ListItem {
@@ -131,6 +133,7 @@ function rowToItem(row: ItemRow): ListItem {
   if (row.notes) item.notes = row.notes;
   if (row.sort_order !== null) item.sortOrder = row.sort_order;
   item.itemType = (row.item_type === "listing") ? "listing" : "search";
+  item.isAdditional = row.is_additional ?? false;
   return item;
 }
 
@@ -267,12 +270,14 @@ export async function touchListRow(listId: string): Promise<void> {
 export async function insertListItem(
   listId: string,
   query: ListItemQuery,
-  initial?: { status?: ListItemStatus; result?: ListItemResult },
+  initial?: { status?: ListItemStatus; result?: ListItemResult; isAdditional?: boolean },
   itemType: "search" | "listing" = "search"
 ): Promise<ListItem | null> {
   const supabase = createClient();
   const status = initial?.status ?? "queued";
   const result = initial?.result;
+  const { data: userData } = await supabase.auth.getUser();
+  const addedByUserId = userData.user?.id ?? null;
   const { data, error } = await supabase
     .from("list_items")
     .insert({
@@ -292,6 +297,8 @@ export async function insertListItem(
       suggested_buy_price: result?.suggestedBuyPrice ?? null,
       completed_at: status === "completed" ? new Date().toISOString() : null,
       item_type: itemType,
+      is_additional: initial?.isAdditional ?? false,
+      added_by_user_id: addedByUserId,
     })
     .select()
     .single();
@@ -320,6 +327,7 @@ export async function updateListItem(
   }
   if (updates.error !== undefined) patch.error_message = updates.error;
   if (updates.notes !== undefined) patch.notes = updates.notes || null;
+  if (updates.isAdditional !== undefined) patch.is_additional = updates.isAdditional;
   if (updates.result !== undefined) {
     patch.median = updates.result.median;
     patch.min_price = updates.result.min;

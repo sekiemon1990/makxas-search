@@ -10,6 +10,7 @@ import {
   Lock,
   BotMessageSquare,
   Settings,
+  Target,
 } from "lucide-react";
 
 // ──────────────────────────────────────────────
@@ -102,20 +103,19 @@ export function AdminSidebar({ hasCostAccess, userEmail }: Props) {
           >
             ユーザー行動詳細
           </NavItem>
-
+          <NavItem
+            href="/admin/additional-buying"
+            active={pathname === "/admin/additional-buying"}
+            icon={<Target size={15} />}
+          >
+            追加買取トラッキング
+          </NavItem>
           <NavItem
             href="/admin/ai"
             active={pathname === "/admin/ai"}
             icon={<BotMessageSquare size={15} />}
           >
             AIアシスタント
-          </NavItem>
-          <NavItem
-            href="/admin/settings"
-            active={pathname === "/admin/settings"}
-            icon={<Settings size={15} />}
-          >
-            管理設定
           </NavItem>
 
           {/* コスト詳細：COST_VIEWER_EMAILS のユーザーのみ表示 */}
@@ -137,6 +137,13 @@ export function AdminSidebar({ hasCostAccess, userEmail }: Props) {
         </NavSection>
 
         <div className="mt-4 pt-3 border-t border-border">
+          <NavItem
+            href="/admin/settings"
+            active={pathname === "/admin/settings"}
+            icon={<Settings size={15} />}
+          >
+            管理設定
+          </NavItem>
           <NavItem href="/search" active={false} icon={<Home size={15} />}>
             検索アプリへ戻る
           </NavItem>

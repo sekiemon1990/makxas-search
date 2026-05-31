@@ -13,6 +13,8 @@ import {
 } from "@/components/SearchFormFields";
 import { SOURCES, type SourceKey } from "@/lib/types";
 import { useLastResultUrl } from "@/lib/storage";
+import { ContractedProjectsPanel } from "@/components/core-rails/ContractedProjectsPanel";
+import { RelatedCategoriesPanel } from "@/components/suggest/RelatedCategoriesPanel";
 
 const VALID_PERIODS: Period[] = PERIOD_OPTIONS.map((p) => p.v);
 const VALID_SOURCES: SourceKey[] = SOURCES.map((s) => s.key);
@@ -63,6 +65,11 @@ function SearchContent() {
 
         <SearchFormFields initial={initial} />
 
+        {/* 関連追加カテゴリ（キーワードが入っている時のみ表示） */}
+        {initial.keyword && (
+          <RelatedCategoriesPanel keyword={initial.keyword} />
+        )}
+
         <section className="mt-2">
           <h3 className="text-sm font-semibold text-foreground mb-2">
             検索のコツ
@@ -73,6 +80,8 @@ function SearchContent() {
             <li>・ 媒体を増やすほど取得時間が長くなります</li>
           </ul>
         </section>
+
+        <ContractedProjectsPanel />
       </div>
     </AppShell>
   );
