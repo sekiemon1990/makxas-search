@@ -14,6 +14,7 @@ Supabase ダッシュボードの **SQL Editor** で順番に貼り付けて Run
 | 3 | `migrate-list-items.sql` | 査定リスト + ListItem テーブル |
 | 4 | `migrate-search-keywords.sql` | 検索キーワード履歴 (オートコンプリート学習用) |
 | 5 | `migrate-search-keywords-favorite.sql` | 保存検索 (`is_favorite` カラム追加) |
+| 6 | `migrate-admin-ai-feedback.sql` | 管理画面 AI チャットログ endpoint 制約 + フィードバックテーブル |
 
 各ファイルは **冪等** (`if not exists` / `add column if not exists`) で書かれているため、重複実行しても安全。
 

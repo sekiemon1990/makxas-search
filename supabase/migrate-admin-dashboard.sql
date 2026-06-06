@@ -7,7 +7,18 @@
 create table if not exists public.api_usage_logs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users(id) on delete set null,
-  endpoint text not null check (endpoint in ('ai-advisor', 'detect-accessories', 'keyword-suggest', 'refine-keywords')),
+  endpoint text not null check (
+    endpoint in (
+      'ai-advisor',
+      'detect-accessories',
+      'keyword-suggest',
+      'refine-keywords',
+      'vision-identify',
+      'bulk-import-image',
+      'ai-chat',
+      'mikomiku-estimate'
+    )
+  ),
   model text not null,
   input_tokens int not null default 0,
   output_tokens int not null default 0,

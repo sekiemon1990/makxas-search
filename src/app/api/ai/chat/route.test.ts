@@ -5,6 +5,8 @@
  * 未ログインの直接 API 呼び出しは Anthropic / DB ツール実行前に 401 で止める。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const {
   mockRequireApiAuth,
@@ -106,5 +108,16 @@ describe("/api/ai/chat POST", () => {
     expect(mockEnforceRateLimit).not.toHaveBeenCalled();
     expect(mockMessagesCreate).not.toHaveBeenCalled();
     expect(mockCreateServiceClient).not.toHaveBeenCalled();
+  });
+
+  it("管理画面AI用のDB migrationに ai-chat endpoint と feedback_logs が含まれる", () => {
+    const sql = readFileSync(
+      join(process.cwd(), "supabase/migrate-admin-ai-feedback.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("'ai-chat'");
+    expect(sql).toContain("create table if not exists public.feedback_logs");
+    expect(sql).toContain("alter table public.feedback_logs enable row level security");
   });
 });
