@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getRequestUserId, logApiUsage } from "@/lib/api-cost";
+import { requireApiAuth } from "@/lib/auth/requireApiAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -183,6 +184,9 @@ function buildSystemPrompt(pageContext?: string, systemExtra?: string): string {
 // ─────────────────────────────────────────────
 
 export async function POST(req: Request) {
+  const gate = await requireApiAuth();
+  if (!gate.ok) return gate.response;
+
   const limited = enforceRateLimit(req, "ai-chat", 20);
   if (limited) return limited;
 
