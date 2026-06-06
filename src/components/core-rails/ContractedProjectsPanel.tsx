@@ -20,6 +20,7 @@ export function ContractedProjectsPanel() {
   const [connected, setConnected] = useState<boolean | null>(null);
 
   const load = useCallback(async (d: number) => {
+    await Promise.resolve();
     setLoading(true);
     setError(null);
     try {
@@ -40,7 +41,10 @@ export function ContractedProjectsPanel() {
   }, []);
 
   useEffect(() => {
-    load(days);
+    const timer = window.setTimeout(() => {
+      void load(days);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [load, days]);
 
   const totalItems = projects.reduce(

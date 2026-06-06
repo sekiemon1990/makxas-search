@@ -8,6 +8,7 @@ import {
   DollarSign,
   Home,
   Lock,
+  BotMessageSquare,
   Settings,
   Target,
 } from "lucide-react";
@@ -108,6 +109,13 @@ export function AdminSidebar({ hasCostAccess, userEmail }: Props) {
             icon={<Target size={15} />}
           >
             追加買取トラッキング
+          </NavItem>
+          <NavItem
+            href="/admin/ai"
+            active={pathname === "/admin/ai"}
+            icon={<BotMessageSquare size={15} />}
+          >
+            AIアシスタント
           </NavItem>
 
           {/* コスト詳細：COST_VIEWER_EMAILS のユーザーのみ表示 */}

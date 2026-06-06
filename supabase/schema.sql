@@ -259,7 +259,18 @@ create policy "saved_advices_own" on public.saved_advices for all using (auth.ui
 create table if not exists public.api_usage_logs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users(id) on delete set null,
-  endpoint text not null check (endpoint in ('ai-advisor', 'detect-accessories', 'keyword-suggest', 'refine-keywords')),
+  endpoint text not null check (
+    endpoint in (
+      'ai-advisor',
+      'detect-accessories',
+      'keyword-suggest',
+      'refine-keywords',
+      'vision-identify',
+      'bulk-import-image',
+      'ai-chat',
+      'mikomiku-estimate'
+    )
+  ),
   model text not null,
   input_tokens int not null default 0,
   output_tokens int not null default 0,
@@ -276,6 +287,34 @@ create index if not exists api_usage_logs_endpoint_idx on public.api_usage_logs(
 -- RLS: 通常ユーザーはアクセス不可。service role は RLS をバイパスするため操作可能
 alter table public.api_usage_logs enable row level security;
 create policy "api_usage_logs_deny_all" on public.api_usage_logs using (false);
+
+-- ============================================================================
+-- 管理画面フィードバック
+-- ============================================================================
+create table if not exists public.feedback_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null default auth.uid(),
+  type text not null check (type in ('bug', 'feature', 'improvement', 'other')),
+  author text,
+  title text not null,
+  body text not null,
+  page_href text,
+  status text not null default 'open' check (status in ('open', 'done')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists feedback_logs_created_at_idx on public.feedback_logs(created_at desc);
+create index if not exists feedback_logs_status_idx on public.feedback_logs(status);
+create index if not exists feedback_logs_user_id_idx on public.feedback_logs(user_id);
+
+alter table public.feedback_logs enable row level security;
+create policy "feedback_logs_select_authenticated" on public.feedback_logs
+  for select to authenticated using (true);
+create policy "feedback_logs_insert_authenticated" on public.feedback_logs
+  for insert to authenticated with check (auth.uid() = user_id);
+create policy "feedback_logs_update_authenticated" on public.feedback_logs
+  for update to authenticated using (true) with check (true);
 
 -- ============================================================================
 -- 期限切れの検索結果を自動削除（24時間後）

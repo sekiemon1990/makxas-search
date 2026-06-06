@@ -26,22 +26,27 @@ export function RealDataPanel({
 
   useEffect(() => {
     const ac = new AbortController();
-    setLoading(true);
-    setError(null);
-    fetch(`/api/core-rails/item-stats?days=${days}`, { signal: ac.signal })
-      .then(async (res) => {
+    void (async () => {
+      await Promise.resolve();
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/core-rails/item-stats?days=${days}`, {
+          signal: ac.signal,
+        });
         if (!res.ok) {
           const body = (await res.json()) as { error?: string };
           throw new Error(body.error ?? "取得失敗");
         }
-        return res.json() as Promise<StatsResponse>;
-      })
-      .then((json) => setData(json))
-      .catch((e: unknown) => {
+        const json = (await res.json()) as StatsResponse;
+        setData(json);
+      } catch (e: unknown) {
         if ((e as Error).name === "AbortError") return;
         setError(e instanceof Error ? e.message : "エラー");
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        setLoading(false);
+      }
+    })();
     return () => ac.abort();
   }, [days]);
 
