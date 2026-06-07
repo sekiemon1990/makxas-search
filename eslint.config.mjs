@@ -9,6 +9,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "public/sw.js",
+    // ネストした worktree（ローカル調整状態・ビルド生成物）は lint 対象外
+    ".claude/**",
   ]),
   {
     rules: {
