@@ -4,9 +4,13 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 const eslintConfig = defineConfig([
   ...nextVitals,
   globalIgnores([
-    ".next/**",
-    "out/**",
-    "build/**",
+    // ネストした worktree (.claude/worktrees/*/.next) のビルド成果物まで無視するため、
+    // ルート直下だけでなく全階層を対象にする (`.next/**` だと nested を拾ってしまう)。
+    "**/.next/**",
+    "**/out/**",
+    "**/build/**",
+    // .claude 配下は worktree やエージェント作業用ディレクトリ。lint 対象外。
+    "**/.claude/**",
     "next-env.d.ts",
     "public/sw.js",
   ]),
