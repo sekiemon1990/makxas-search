@@ -67,6 +67,14 @@ export const serverEnv = {
   get COST_VIEWER_EMAILS(): string {
     return process.env.COST_VIEWER_EMAILS ?? "";
   },
+  /**
+   * 見込金額ロジックを AIチャットでチューニングできるマネージャーのメールリスト
+   * （カンマ区切り）。営業部/FS マネージャー・直営事業責任者を想定。
+   * 未設定の場合は ADMIN_EMAILS のみ許可（誰も追加されていなければ管理者のみ）。
+   */
+  get MIKOMIKU_TUNING_EMAILS(): string {
+    return process.env.MIKOMIKU_TUNING_EMAILS ?? "";
+  },
   /** core-rails GraphQL エンドポイント（開発時は http://localhost:3000） */
   get CORE_RAILS_URL(): string {
     return process.env.CORE_RAILS_URL ?? "";
