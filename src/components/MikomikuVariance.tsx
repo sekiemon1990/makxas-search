@@ -1,8 +1,8 @@
 "use client";
 
-// 想定売価チェック（差分可視化UI）
+// 見込金額チェック（差分可視化UI）
 //
-// 査定士の想定売価と、AIの客観値（ヤフオク・メルカリの実売データ由来）を
+// 査定士の見込金額と、AIの客観値（ヤフオク・メルカリの実売データ由来）を
 // 並べて表示し、ズレを信号色で見せる。過大評価をその場で気づかせ、
 // 経営評価（見込み粗利）の歪みを抑制するためのコンポーネント。
 
@@ -99,7 +99,7 @@ export function MikomikuVariance({
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-800">想定売価チェック</h3>
+        <h3 className="text-sm font-semibold text-gray-800">見込金額チェック</h3>
         <span className="text-[11px] text-gray-400">
           実売データ（ヤフオク・メルカリ）由来
         </span>
@@ -109,7 +109,7 @@ export function MikomikuVariance({
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-lg bg-gray-50 p-3">
           <p className="text-[11px] font-medium text-gray-500">
-            査定士の想定売価
+            査定士の見込金額
           </p>
           <p className="mt-1 text-xl font-bold text-gray-800">
             {variance ? yen(variance.humanEstimate) : "—"}
@@ -149,14 +149,14 @@ export function MikomikuVariance({
         )}
         {!variance && (
           <p className="mt-1.5 text-xs text-gray-500">
-            想定売価を入力すると、AI客観値とのズレを判定します。
+            見込金額を入力すると、AI客観値とのズレを判定します。
           </p>
         )}
       </div>
 
-      {/* 想定レンジ + 手取り基準 */}
+      {/* 見込レンジ + 手取り基準 */}
       <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
-        <span>想定レンジ</span>
+        <span>見込レンジ</span>
         <span className="font-medium text-gray-700">
           {yen(estimate.range.low)} 〜 {yen(estimate.range.high)}
         </span>
