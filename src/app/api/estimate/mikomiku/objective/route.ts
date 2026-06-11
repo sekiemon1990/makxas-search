@@ -13,6 +13,7 @@ import { estimateMikomiku } from "@/lib/mikomiku/estimate";
 import { evaluateVariance } from "@/lib/mikomiku/variance";
 import type { SoldSample, MarketSamples } from "@/lib/mikomiku/types";
 import type { ShippingType } from "@/lib/types";
+import { requireApiAuth } from "@/lib/auth/requireApiAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -35,6 +36,10 @@ type RequestBody = {
 };
 
 export async function POST(req: Request) {
+  // 認証: ログイン済みユーザーのみ（環境監査 2026-06-11: 無認証露出の解消）
+  const gate = await requireApiAuth();
+  if (!gate.ok) return gate.response;
+
   const limited = enforceRateLimit(req, "mikomiku-objective", 20);
   if (limited) return limited;
 
