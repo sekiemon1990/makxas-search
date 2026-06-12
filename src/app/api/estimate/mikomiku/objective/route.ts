@@ -12,6 +12,7 @@ import { computeRobustStats } from "@/lib/mikomiku/statistics";
 import { estimateMikomiku } from "@/lib/mikomiku/estimate";
 import { evaluateVariance } from "@/lib/mikomiku/variance";
 import { postMikomikuJudgmentToDecisionLedger } from "@/lib/mikomiku/decision-ledger";
+import { authenticateMikomikuObjectiveInternalRequest } from "@/lib/mikomiku/objective-internal-auth";
 import type { SoldSample, MarketSamples } from "@/lib/mikomiku/types";
 import type { ShippingType } from "@/lib/types";
 import { requireApiAuth } from "@/lib/auth/requireApiAuth";
@@ -38,8 +39,10 @@ type RequestBody = {
 
 export async function POST(req: Request) {
   // 認証: ログイン済みユーザーのみ（環境監査 2026-06-11: 無認証露出の解消）
-  const gate = await requireApiAuth();
-  if (!gate.ok) return gate.response;
+  const internalActor = authenticateMikomikuObjectiveInternalRequest(req);
+  const gate = internalActor ? null : await requireApiAuth();
+  if (gate && !gate.ok) return gate.response;
+  const actor = internalActor ?? gate?.userId;
 
   const limited = enforceRateLimit(req, "mikomiku-objective", 20);
   if (limited) return limited;
@@ -114,7 +117,7 @@ export async function POST(req: Request) {
         estimate,
         stats,
         variance,
-        actor: gate.userId,
+        actor,
       }),
     );
   }
