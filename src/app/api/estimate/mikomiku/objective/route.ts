@@ -5,12 +5,13 @@
 //   実売価取得 → ロバスト統計 → 客観的見込金額 → (人間想定値との差分)
 // まで一気通貫で算出する。属人性・過大評価バイアスをデータドリブンに排除する。
 
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { defaultMarketProvider } from "@/lib/mikomiku/market-price";
 import { computeRobustStats } from "@/lib/mikomiku/statistics";
 import { estimateMikomiku } from "@/lib/mikomiku/estimate";
 import { evaluateVariance } from "@/lib/mikomiku/variance";
+import { postMikomikuJudgmentToDecisionLedger } from "@/lib/mikomiku/decision-ledger";
 import type { SoldSample, MarketSamples } from "@/lib/mikomiku/types";
 import type { ShippingType } from "@/lib/types";
 import { requireApiAuth } from "@/lib/auth/requireApiAuth";
@@ -105,6 +106,18 @@ export async function POST(req: Request) {
           aiLowConfidence: estimate.lowConfidence,
         })
       : null;
+
+  if (variance) {
+    after(() =>
+      postMikomikuJudgmentToDecisionLedger({
+        keyword,
+        estimate,
+        stats,
+        variance,
+        actor: gate.userId,
+      }),
+    );
+  }
 
   return NextResponse.json({
     keyword,

@@ -49,6 +49,12 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 同上 |
 | `SUPABASE_SERVICE_ROLE_KEY` | 同上 (サーバ専用) |
 | `ANTHROPIC_API_KEY` | https://console.anthropic.com |
+| `ADMIN_EMAILS` | 管理画面を許可するメールアドレス（カンマ区切り） |
+| `GATEWAY_BASE_URL` | Decision Ledger API。既定: `https://makxas-integrations-gateway.vercel.app` |
+| `GATEWAY_SHARED_TOKEN` | Gateway 共有トークン（サーバ専用。`NEXT_PUBLIC_` 禁止） |
+
+`GATEWAY_SHARED_TOKEN` が未設定の場合、見込金額の算出自体は継続し、Decision Ledger への記録だけを skip する。
+本番では Vercel の Environment Variables に `GATEWAY_BASE_URL` と `GATEWAY_SHARED_TOKEN` を設定する。
 
 ### 3. Supabase スキーマ適用
 
