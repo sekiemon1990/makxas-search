@@ -1,7 +1,7 @@
-// 人間の想定売価 vs AI客観値の差分（過大評価の見える化）
+// 人間の見込金額 vs AI客観値の差分（過大評価の見える化）
 //
 // メモリ「AI経営OS / 見込金額算出AI」の中核要件:
-// 見込み粗利は「想定売価を高く設定する」心理が構造的に働く（特に新人）。
+// 見込み粗利は「見込金額を高く設定する」心理が構造的に働く（特に新人）。
 // AIの客観値と人間の想定値の乖離を可視化し、経営評価（見込み粗利）の歪みを補正する。
 //
 // ここは純ロジック。査定士の入力値と AI 客観値を受け取り、乖離率・判定を返す。
@@ -13,9 +13,9 @@ export type VarianceVerdict =
   | "no_reference"; // AI客観値が信頼できず比較不能
 
 export interface VarianceResult {
-  /** 査定士が入力した想定売価 */
+  /** 査定士が入力した見込金額 */
   humanEstimate: number;
-  /** AIの客観的想定売価 */
+  /** AIの客観的見込金額 */
   aiEstimate: number;
   /** 乖離額（human - ai）。正なら人間が高い */
   deltaAmount: number;
@@ -40,7 +40,7 @@ export interface VarianceOptions {
 }
 
 /**
- * 人間の想定売価と AI 客観値の乖離を算出する。
+ * 人間の見込金額と AI 客観値の乖離を算出する。
  */
 export function evaluateVariance(
   humanEstimate: number,
@@ -81,13 +81,13 @@ export function evaluateVariance(
   let message: string;
   switch (verdict) {
     case "overvalued":
-      message = `想定売価がAI客観値より${pct}%高い（+${deltaAmount.toLocaleString()}円）。過大評価の可能性。見込み粗利が膨らむため経営評価では補正対象。`;
+      message = `見込金額がAI客観値より${pct}%高い（+${deltaAmount.toLocaleString()}円）。過大評価の可能性。見込み粗利が膨らむため経営評価では補正対象。`;
       break;
     case "undervalued":
-      message = `想定売価がAI客観値より${Math.abs(Number(pct))}%低い（${deltaAmount.toLocaleString()}円）。取りこぼし／慎重すぎの可能性。`;
+      message = `見込金額がAI客観値より${Math.abs(Number(pct))}%低い（${deltaAmount.toLocaleString()}円）。取りこぼし／慎重すぎの可能性。`;
       break;
     case "aligned":
-      message = `想定売価はAI客観値と概ね一致（乖離${pct}%）。健全。`;
+      message = `見込金額はAI客観値と概ね一致（乖離${pct}%）。健全。`;
       break;
     default:
       message = "";
