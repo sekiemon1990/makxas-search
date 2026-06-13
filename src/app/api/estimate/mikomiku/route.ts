@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { getRequestUserId, logApiUsage } from "@/lib/api-cost";
 import { createServiceClient } from "@/lib/supabase/service";
+import { requireApiAuth } from "@/lib/auth/requireApiAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -34,6 +35,10 @@ type KnowledgeFileRow = {
 };
 
 export async function POST(req: Request) {
+  // 認証: ログイン済みユーザーのみ（環境監査 2026-06-11: 無認証露出の解消）
+  const gate = await requireApiAuth();
+  if (!gate.ok) return gate.response;
+
   const limited = enforceRateLimit(req, "mikomiku-estimate", 30);
   if (limited) return limited;
 

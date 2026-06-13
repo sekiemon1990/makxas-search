@@ -1,18 +1,21 @@
-// 見込金額（想定売価）算出AI — 客観値パイプライン
+// 見込金額算出AI — 客観値パイプライン
 //
 // 既存 /api/estimate/mikomiku（クライアントが渡した median を係数で割るだけ）の進化版。
 // このエンドポイントは「ヤフオク・メルカリAPI連携」で実売価をサーバ側取得し、
 //   実売価取得 → ロバスト統計 → 客観的見込金額 → (人間想定値との差分)
 // まで一気通貫で算出する。属人性・過大評価バイアスをデータドリブンに排除する。
 
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { defaultMarketProvider } from "@/lib/mikomiku/market-price";
 import { computeRobustStats } from "@/lib/mikomiku/statistics";
 import { estimateMikomiku } from "@/lib/mikomiku/estimate";
 import { evaluateVariance } from "@/lib/mikomiku/variance";
+import { postMikomikuJudgmentToDecisionLedger } from "@/lib/mikomiku/decision-ledger";
+import { authenticateMikomikuObjectiveInternalRequest } from "@/lib/mikomiku/objective-internal-auth";
 import type { SoldSample, MarketSamples } from "@/lib/mikomiku/types";
 import type { ShippingType } from "@/lib/types";
+import { requireApiAuth } from "@/lib/auth/requireApiAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -22,19 +25,25 @@ type RequestBody = {
   keyword?: string;
   /** 除外キーワード（部品取り・ジャンク混入の除去） */
   excludes?: string;
-  /** 査定士が入力した想定売価（あれば差分=過大評価判定を返す） */
+  /** 査定士が入力した見込金額（あれば差分=過大評価判定を返す） */
   humanEstimate?: number;
   /** 出品形態（手取り換算用）。既定 "free" */
   shipping?: ShippingType;
   /** 手取り基準で見込金額を出すか。既定 false（表示相場基準） */
   netBased?: boolean;
-  /** 想定売価係数の上書き（既定 0.85） */
+  /** 見込金額係数の上書き（既定 0.85） */
   baseRatio?: number;
   /** 媒体ごとの取得上限。既定 60 */
   limitPerSource?: number;
 };
 
 export async function POST(req: Request) {
+  // 認証: ログイン済みユーザーのみ（環境監査 2026-06-11: 無認証露出の解消）
+  const internalActor = authenticateMikomikuObjectiveInternalRequest(req);
+  const gate = internalActor ? null : await requireApiAuth();
+  if (gate && !gate.ok) return gate.response;
+  const actor = internalActor ?? gate?.userId;
+
   const limited = enforceRateLimit(req, "mikomiku-objective", 20);
   if (limited) return limited;
 
@@ -100,6 +109,18 @@ export async function POST(req: Request) {
           aiLowConfidence: estimate.lowConfidence,
         })
       : null;
+
+  if (variance) {
+    after(() =>
+      postMikomikuJudgmentToDecisionLedger({
+        keyword,
+        estimate,
+        stats,
+        variance,
+        actor,
+      }),
+    );
+  }
 
   return NextResponse.json({
     keyword,

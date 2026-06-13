@@ -18,9 +18,24 @@ export default async function AdminLayout({
     data: { user },
   } = await supabase.auth.getUser();
 
-  // プレビュー用: ログイン済みなら誰でもアクセス可 (本番では ADMIN_EMAILS チェックに戻す)
   if (!user) {
     redirect("/search");
+  }
+
+  // ADMIN_EMAILS（カンマ区切り）が設定されていれば管理者限定にする。
+  // 未設定の間はログイン済み全員に開放（従来挙動）だが、警告ログを出して設定を促す。
+  const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (adminEmails.length > 0) {
+    if (!user.email || !adminEmails.includes(user.email.toLowerCase())) {
+      redirect("/search");
+    }
+  } else {
+    console.warn(
+      "[admin] ADMIN_EMAILS が未設定のため、ログイン済み全員が /admin にアクセス可能です。本番では設定してください。",
+    );
   }
 
   // コスト閲覧権限チェック (プレビューでは全員に開放)

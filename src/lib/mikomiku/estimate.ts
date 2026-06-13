@@ -1,4 +1,4 @@
-// 客観的想定売価（見込金額）の算出コア
+// 客観的な見込金額の算出コア
 //
 // 設計:
 // - ロバスト統計（外れ値・古い相場を除いた中央値）を相場の中心に据える。
@@ -13,10 +13,10 @@ import type { ShippingType } from "@/lib/types";
 import { calculateNetValue } from "@/lib/net-value";
 import type { RobustMarketStats, MarketSourceKey } from "./types";
 
-/** 想定売価の算出方針 */
+/** 見込金額の算出方針 */
 export interface EstimateOptions {
   /**
-   * 想定売価係数。相場中央値に対して見込む割合。
+   * 見込金額係数。相場中央値に対して見込む割合。
    * 既定 0.85（買取後に確実に捌ける水準を想定。属人運用の「70%」より根拠を持たせる）。
    */
   baseRatio?: number;
@@ -34,13 +34,13 @@ export interface MikomikuEstimate {
   mikomiku: number;
   /** 相場中心値（ロバスト中央値） */
   marketMedian: number;
-  /** 採用した想定売価係数（信頼度補正後） */
+  /** 採用した見込金額係数（信頼度補正後） */
   appliedRatio: number;
   /** 信頼度 0..100（統計由来） */
   confidence: number;
   /** 手取り基準の参考値（手数料・送料控除後の中央値） */
   netMedian: number;
-  /** 想定売価レンジ（q1〜q3 に係数を適用した目安） */
+  /** 見込金額レンジ（q1〜q3 に係数を適用した目安） */
   range: { low: number; high: number };
   /** 採用媒体の内訳 */
   bySource: { source: MarketSourceKey; count: number; median: number }[];
@@ -54,7 +54,7 @@ const DEFAULT_BASE_RATIO = 0.85;
 const LOW_CONFIDENCE_THRESHOLD = 40;
 
 /**
- * 信頼度に応じて想定売価係数を補正する。
+ * 信頼度に応じて見込金額係数を補正する。
  * 信頼度が低いほど安全側（低め）に割り引き、過大評価を防ぐ。
  * confidence=100 → 補正なし / confidence=0 → 最大15%下方
  */
@@ -174,10 +174,10 @@ function buildRationale(input: {
   );
   if (appliedRatio < baseRatio) {
     parts.push(
-      `信頼度${stats.confidence}/100のため想定売価係数を基準${(baseRatio * 100).toFixed(0)}%から${(appliedRatio * 100).toFixed(0)}%に下方補正（過大評価の抑制）。`,
+      `信頼度${stats.confidence}/100のため見込金額係数を基準${(baseRatio * 100).toFixed(0)}%から${(appliedRatio * 100).toFixed(0)}%に下方補正（過大評価の抑制）。`,
     );
   } else {
-    parts.push(`想定売価係数${(appliedRatio * 100).toFixed(0)}%を適用。`);
+    parts.push(`見込金額係数${(appliedRatio * 100).toFixed(0)}%を適用。`);
   }
   parts.push(
     `→ 見込金額${mikomiku.toLocaleString()}円（${netBased ? "手取り" : "表示相場"}基準）。`,

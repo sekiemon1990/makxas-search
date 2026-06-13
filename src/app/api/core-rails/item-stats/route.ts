@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchContractedProjects } from "@/lib/core-rails/client";
 import { aggregateProjects } from "@/lib/core-rails/aggregate";
+import { requireApiAuth } from "@/lib/auth/requireApiAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -8,6 +9,10 @@ export const maxDuration = 30;
 // GET /api/core-rails/item-stats?days=90
 // 成約案件を backgroundCode × カテゴリで集計して返す
 export async function GET(req: NextRequest) {
+  // 認証: ログイン済みユーザーのみ（環境監査 2026-06-11: 無認証露出の解消）
+  const gate = await requireApiAuth();
+  if (!gate.ok) return gate.response;
+
   const url = new URL(req.url);
   const daysParam = url.searchParams.get("days");
   const days = Number(daysParam ?? 90);
