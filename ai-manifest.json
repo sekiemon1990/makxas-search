@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "repo": "makxas-search",
+  "owner": "社長室",
+  "last_reviewed_on": "2026-06-18",
+  "items": [
+    {
+      "name": "AI査定アドバイザー",
+      "description": "買取査定の相場検索結果と入力情報をもとに、査定判断と次アクションを支援する。",
+      "kind": "agent",
+      "where_used": ["/api/ai-advisor", "査定画面", "社内スタッフ"],
+      "data_sensitivity": "pii",
+      "monthly_cost": "Anthropic API従量課金。単価はAGENTS.mdのClaude APIコスト表を参照。",
+      "owner": "社長室",
+      "entrypoints": [
+        "src/app/api/ai-advisor/route.ts",
+        "src/components/ai/ChatPanel.tsx",
+        "src/components/ai/FloatingWidget.tsx"
+      ],
+      "dependencies": [
+        "Anthropic API",
+        "Supabase",
+        "相場検索データ",
+        "makxas-core連携"
+      ],
+      "kill_switch": "AI APIキーを未設定にする、またはAIアドバイザーUIと/api/ai-advisorを停止する",
+      "status": "live",
+      "runbook": "AGENTS.md",
+      "risk_notes": "顧客情報や査定内容を扱う可能性があるため、出力はスタッフ判断の補助に限定する。"
+    },
+    {
+      "name": "MIKOMIKU Decision Ledger連携",
+      "description": "AI判断のばらつきや評価結果をGatewayのDecision Ledgerへ記録し、改善に使う。",
+      "kind": "external_integration",
+      "where_used": ["AI査定", "判断品質の改善", "makxas-integrations-gateway"],
+      "data_sensitivity": "confidential",
+      "monthly_cost": "既存Gateway実行基盤内。追加固定費なし。",
+      "owner": "社長室",
+      "entrypoints": [
+        "src/lib/mikomiku/decision-ledger.ts",
+        "src/app/api/admin/mikomiku-tuning/chat/route.ts"
+      ],
+      "dependencies": [
+        "makxas-integrations-gateway",
+        "Decision Ledger",
+        "Anthropic API"
+      ],
+      "kill_switch": "MIKOMIKU_OBJECTIVE_INTERNAL_TOKEN / Gateway連携設定を未設定にする",
+      "status": "live",
+      "runbook": "AGENTS.md",
+      "risk_notes": "評価用データは必要最小限にし、secretや顧客PII実値をmanifestやログに残さない。"
+    },
+    {
+      "name": "AIチューニング管理",
+      "description": "見込金額ロジックやAI応答を管理画面から調整し、査定精度改善につなげる。",
+      "kind": "product_feature",
+      "where_used": ["/admin/ai", "/api/admin/mikomiku-tuning/chat"],
+      "data_sensitivity": "confidential",
+      "monthly_cost": "既存Anthropic API従量課金内。",
+      "owner": "社長室",
+      "entrypoints": [
+        "src/app/admin/ai/page.tsx",
+        "src/app/api/admin/mikomiku-tuning/chat/route.ts",
+        "src/components/ai/FeedbackForm.tsx"
+      ],
+      "dependencies": ["Anthropic API", "Supabase", "AI feedback tables"],
+      "kill_switch": "管理画面のAI調整メニューを非表示にし、該当API routeの環境変数を未設定にする",
+      "status": "live",
+      "runbook": "AGENTS.md",
+      "risk_notes": "本番査定ロジックに影響する変更はレビューと回帰確認を必須にする。"
+    }
+  ]
+}
