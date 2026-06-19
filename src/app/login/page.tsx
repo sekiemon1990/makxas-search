@@ -41,6 +41,8 @@ function LoginInner() {
   const errorParam = params.get("error");
 
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(
     errorParam === "auth_callback_failed"
       ? "ログインに失敗しました。もう一度お試しください。"
@@ -79,6 +81,27 @@ function LoginInner() {
       setLoading(false);
     }
     // 成功時は Google にリダイレクトされるのでここには来ない
+  }
+
+  // ID・パスワード認証（ADR-0007 / 第21条）。第2経路。
+  // 既存ユーザー（Googleでプロビジョニング済み）が同じ auth.users 行のパスワードでログイン。
+  // 新規signup口は開かない（identity単一）。パスワードは /auth/reset で既存行に付与する。
+  async function handlePasswordSignIn(e: React.FormEvent) {
+    e.preventDefault();
+    if (loading) return;
+    setError(null);
+    setLoading(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
+    if (error) {
+      setError("メールアドレスまたはパスワードが正しくありません。");
+      setLoading(false);
+      return;
+    }
+    router.replace(next);
   }
 
   return (
@@ -137,6 +160,45 @@ function LoginInner() {
             )}
             <span>Google でログイン</span>
           </button>
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-[11px] text-muted">または</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          {/* 第2経路: メールアドレス + パスワード（ADR-0007 / 第21条） */}
+          <form onSubmit={handlePasswordSignIn} className="flex flex-col gap-3">
+            <input
+              type="email"
+              required
+              placeholder="メールアドレス"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="h-12 rounded-lg border border-border bg-surface px-3 text-sm text-foreground"
+            />
+            <input
+              type="password"
+              required
+              placeholder="パスワード"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="h-12 rounded-lg border border-border bg-surface px-3 text-sm text-foreground"
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="tap-scale h-12 rounded-lg bg-primary text-white font-medium hover:opacity-90 active:opacity-80 transition disabled:opacity-60"
+            >
+              メールアドレスでログイン
+            </button>
+          </form>
+
+          <a href="/auth/reset" className="text-xs text-muted text-center underline">
+            パスワードを設定 / 忘れた方
+          </a>
 
           <p className="text-[11px] text-muted text-center leading-relaxed">
             ログインすることで、利用規約・プライバシーポリシーに同意したものとみなされます。
