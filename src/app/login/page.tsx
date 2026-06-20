@@ -69,9 +69,11 @@ function LoginInner() {
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        // prompt を付けない = Google セッションが生きている間はアカウント選択画面を
+        // 出さずサイレントに再認証され、再ログインを求められない（ADR-0023 ログイン継続性）。
+        // access_type:offline は Google refresh token 取得用に維持。
         queryParams: {
           access_type: "offline",
-          prompt: "select_account",
         },
       },
     });
