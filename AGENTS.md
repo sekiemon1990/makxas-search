@@ -120,3 +120,9 @@ A = git・短時間 / B = dev server / C = log 監視 / D = スクラッチ
 - Anthropic API キーのクライアントサイドへの露出（`NEXT_PUBLIC_` プレフィックス禁止）
 - 依存パッケージのメジャーバージョン更新 → 動作確認なしでの実施禁止
 - 本番 Supabase プロジェクトへのスキーマ変更（DROP / ALTER）は明示指示があるときのみ
+
+## 全社横断ルール反映（ADR）
+
+横断決定の正本は `makxas-ai-native/decisions/`。本 repo に関係する確定事項:
+
+- **ADR-0029（全ツール共通 埋め込みAIアシスタント基盤のサービス境界）**: 1. **対話オーケストレータと埋め込みアシスタント基盤を分離する。** makxas-agent の `chatwork-webhook`（対話オーケストレータ・約4,649行のモノリス）には**同居させない**。 2. **集約サーバは当面作らない。** 共有ライブラリ（`makxas-ai-kit`）＋ 統制規約で実現する（ハイブリッド）。 LLM 実 詳細: `makxas-ai-native/decisions/ADR-0029-copilot-assistant-platform-boundary.md`。
