@@ -25,11 +25,14 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      - name: Test
+        run: npm test
+
       - name: Build
         run: npm run build
         env:
           # Build 時に env が無いと escape する箇所のためのダミー値
           ANTHROPIC_API_KEY: ci-dummy
-          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-dummy-anon-key
-          SUPABASE_SERVICE_ROLE_KEY: ci-dummy-service-key
+          NEXT_PUBLIC_SUPABASE_URL: ""
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
+          SUPABASE_SERVICE_ROLE_KEY: ""
