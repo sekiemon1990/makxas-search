@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Sparkles, Loader2, Star, AlertCircle, Target } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  Loader2,
+  Sparkles,
+  Star,
+  Target,
+  X,
+} from "lucide-react";
 import {
   saveAdvice,
   removeSavedAdvice,
@@ -33,6 +41,8 @@ type Advice = {
   warnings: string[];
   additionalCategories?: AdditionalCategory[];
 };
+
+type AdoptionDecision = "accepted" | "rejected";
 
 async function fetchAdvice(
   keyword: string,
@@ -66,6 +76,10 @@ export function AiAdvisor({ keyword, productGuess, listings }: Props) {
   const [advice, setAdvice] = useState<Advice | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [adoptionByRank, setAdoptionByRank] = useState<
+    Record<string, AdoptionDecision>
+  >({});
+  const [trackingKey, setTrackingKey] = useState<string | null>(null);
   const searchKey = searchKeyFromKeyword(keyword);
   const saved = useAdviceSaved(searchKey);
 
@@ -103,6 +117,38 @@ export function AiAdvisor({ keyword, productGuess, listings }: Props) {
         actionLabel: "履歴で見る",
         actionHref: "/history",
       });
+    }
+    haptic(8);
+  }
+
+  async function trackAdoption(
+    recommendation: Advice["recommendations"][number],
+    index: number,
+    decision: AdoptionDecision,
+  ) {
+    const key = `${recommendation.rank}:${recommendation.price}`;
+    setAdoptionByRank((prev) => ({ ...prev, [key]: decision }));
+    setTrackingKey(key);
+    try {
+      await fetch("/api/ai-advisor/adoption", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          keyword,
+          productGuess,
+          decision,
+          listingsCount: listings.length,
+          recommendation: {
+            ...recommendation,
+            index,
+          },
+        }),
+      });
+      toast({ message: decision === "accepted" ? "採用を記録しました" : "見送りを記録しました" });
+    } catch {
+      toast({ message: "記録に失敗しました。画面はそのまま使えます" });
+    } finally {
+      setTrackingKey(null);
     }
     haptic(8);
   }
@@ -193,7 +239,11 @@ export function AiAdvisor({ keyword, productGuess, listings }: Props) {
               買取額の目安（状態別）
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {advice.recommendations.map((r) => (
+              {advice.recommendations.map((r, index) => {
+                const adoptionKey = `${r.rank}:${r.price}`;
+                const currentDecision = adoptionByRank[adoptionKey];
+                const isTracking = trackingKey === adoptionKey;
+                return (
                 <div
                   key={r.rank}
                   className="bg-surface border border-border rounded-lg p-2.5"
@@ -204,8 +254,41 @@ export function AiAdvisor({ keyword, productGuess, listings }: Props) {
                   <div className="text-base font-bold text-foreground mt-0.5">
                     ¥{r.price.toLocaleString("ja-JP")}
                   </div>
+                  <div className="grid grid-cols-2 gap-1.5 mt-2">
+                    <button
+                      type="button"
+                      title="この提案額を採用"
+                      aria-pressed={currentDecision === "accepted"}
+                      disabled={isTracking}
+                      onClick={() => trackAdoption(r, index, "accepted")}
+                      className={
+                        currentDecision === "accepted"
+                          ? "h-7 rounded-md bg-success text-white text-[11px] font-semibold inline-flex items-center justify-center gap-1"
+                          : "h-7 rounded-md border border-border text-[11px] font-medium text-muted hover:text-foreground inline-flex items-center justify-center gap-1 disabled:opacity-60"
+                      }
+                    >
+                      <Check size={12} />
+                      採用
+                    </button>
+                    <button
+                      type="button"
+                      title="この提案額を見送り"
+                      aria-pressed={currentDecision === "rejected"}
+                      disabled={isTracking}
+                      onClick={() => trackAdoption(r, index, "rejected")}
+                      className={
+                        currentDecision === "rejected"
+                          ? "h-7 rounded-md bg-muted text-background text-[11px] font-semibold inline-flex items-center justify-center gap-1"
+                          : "h-7 rounded-md border border-border text-[11px] font-medium text-muted hover:text-foreground inline-flex items-center justify-center gap-1 disabled:opacity-60"
+                      }
+                    >
+                      <X size={12} />
+                      見送り
+                    </button>
+                  </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
