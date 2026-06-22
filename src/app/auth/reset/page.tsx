@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import {
+  isReadonlyDemoEmail,
+  READONLY_DEMO_MESSAGE,
+} from "@/lib/auth/readonly";
 
 // パスワード設定/再設定の要求（ADR-0007）。/auth 配下なので公開パス。
 // 既存ユーザーの同じ auth.users 行にパスワードを付与する（新規signup口は開かない）。
@@ -12,6 +16,10 @@ export default function ResetPasswordPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (isReadonlyDemoEmail(email)) {
+      setSent(false);
+      return;
+    }
     setLoading(true);
     const supabase = createClient();
     // 存在秘匿: 成否に関わらず同じ通知。recovery リンクは /auth/callback で
@@ -35,6 +43,11 @@ export default function ResetPasswordPage() {
           Google でログイン中の方もここから設定できます。
         </p>
         <div className="bg-surface border border-border rounded-2xl p-6 flex flex-col gap-4">
+          {isReadonlyDemoEmail(email) && (
+            <p className="text-sm text-danger text-center leading-relaxed">
+              {READONLY_DEMO_MESSAGE}
+            </p>
+          )}
           {sent ? (
             <p className="text-sm text-foreground leading-relaxed">
               設定用のメールを送信しました（登録済みのアドレスの場合）。メールのリンクから設定してください。

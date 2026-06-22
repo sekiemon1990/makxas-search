@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { ensureWritableClient } from "@/lib/auth/readonly-client";
 
 export type FeedbackType = "bug" | "feature" | "improvement" | "other";
 
@@ -47,6 +48,7 @@ export function FeedbackForm({ compact = false, onSent }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !body.trim()) return;
+    if (!(await ensureWritableClient())) return;
     setSubmitting(true);
     setError("");
 

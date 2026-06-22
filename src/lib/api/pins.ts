@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { ensureWritableClient } from "@/lib/auth/readonly-client";
 
 export type PinRow = {
   id: string;
@@ -38,6 +39,7 @@ export async function setSearchPin(
   searchKeyword: string,
   pinned: boolean
 ): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const supabase = createClient();
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError) console.error("[pins] auth error:", userError);
@@ -77,6 +79,7 @@ export async function setListingPin(
   listingRef: string,
   pinned: boolean
 ): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const supabase = createClient();
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError) console.error("[pins] auth error:", userError);

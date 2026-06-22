@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { ensureWritableClient } from "@/lib/auth/readonly-client";
 
 export type SearchKeywordEntry = {
   keyword: string;
@@ -14,6 +15,7 @@ export type SearchKeywordEntry = {
  * 同じキーワードを検索すると count が増えるだけ。
  */
 export async function recordSearchKeyword(keyword: string): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const trimmed = keyword.trim();
   if (!trimmed) return;
   const supabase = createClient();
@@ -120,6 +122,7 @@ export async function toggleFavoriteKeyword(
   keyword: string,
   isFavorite: boolean,
 ): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const trimmed = keyword.trim();
   if (!trimmed) return;
   const supabase = createClient();
@@ -153,6 +156,7 @@ export async function toggleFavoriteKeyword(
  * 検索履歴の単一エントリを削除。
  */
 export async function deleteSearchHistoryEntry(keyword: string): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const trimmed = keyword.trim();
   if (!trimmed) return;
   const supabase = createClient();
