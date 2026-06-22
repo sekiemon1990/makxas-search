@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Search, History, Settings as SettingsIcon, ListChecks, Camera, LayoutDashboard, Lightbulb } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { ListBar } from "./ListBar";
+import { ReadonlyDemoBanner } from "./ReadonlyDemoBanner";
 
 type AppShellProps = {
   title?: string;
@@ -102,6 +103,8 @@ export function AppShell({
           </div>
         </div>
       </header>
+
+      <ReadonlyDemoBanner />
 
       <ListBar />
 

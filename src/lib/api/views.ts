@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import type { SourceKey } from "@/lib/types";
+import { ensureWritableClient } from "@/lib/auth/readonly-client";
 
 export type ListingViewSnapshot = {
   ref: string;
@@ -24,6 +25,7 @@ export type ListingViewSnapshot = {
 export async function recordListingView(
   snapshot: Omit<ListingViewSnapshot, "viewedAt">
 ): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const supabase = createClient();
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError) console.error("[views] auth error:", userError);

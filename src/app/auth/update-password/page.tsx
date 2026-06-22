@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { ensureWritableClient } from "@/lib/auth/readonly-client";
 
 // 新しいパスワードの確定（ADR-0007）。/auth/callback で recovery セッション確立後に開かれ、
 // updateUser({ password }) で同じ auth.users 行にパスワードを付与する。
@@ -37,6 +38,7 @@ export default function UpdatePasswordPage() {
       setError("パスワードが一致しません。");
       return;
     }
+    if (!(await ensureWritableClient())) return;
     setLoading(true);
     const supabase = createClient();
     const { error: updateError } = await supabase.auth.updateUser({ password });

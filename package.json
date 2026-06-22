@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit",
     "analyze": "ANALYZE=1 next build",
     "test": "vitest run",
+    "provision:demo": "node scripts/provision-demo-account.mjs",
+    "smoke:readonly-demo": "node scripts/readonly-demo-smoke.mjs",
     "test:watch": "vitest",
     "prepare": "husky"
   },

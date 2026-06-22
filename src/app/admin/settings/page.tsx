@@ -21,6 +21,7 @@ import {
   Plus,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { ensureWritableClient } from "@/lib/auth/readonly-client";
 
 // ─────────────────────────────────────────────
 // 型定義
@@ -94,6 +95,7 @@ function AiContextSection() {
   }, []);
 
   async function handleSave() {
+    if (!(await ensureWritableClient())) return;
     setSaving(true);
     const supabase = createClient();
     const now = new Date().toISOString();
@@ -188,6 +190,7 @@ function MikomikuPromptSection() {
   }, []);
 
   async function handleSave() {
+    if (!(await ensureWritableClient())) return;
     setSaving(true);
     const supabase = createClient();
     const now = new Date().toISOString();
@@ -332,6 +335,10 @@ function KnowledgeFileUpload({
   }, [categoryId]);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!(await ensureWritableClient())) {
+      e.target.value = "";
+      return;
+    }
     const selectedFiles = e.target.files;
     if (!selectedFiles || selectedFiles.length === 0) return;
 
@@ -391,6 +398,7 @@ function KnowledgeFileUpload({
   }
 
   async function deleteFile(file: KnowledgeFile) {
+    if (!(await ensureWritableClient())) return;
     setDeletingIds((prev) => new Set(prev).add(file.id));
     const supabase = createClient();
     await supabase.storage.from("mikomiku-knowledge").remove([file.storage_path]);
@@ -558,6 +566,7 @@ function CategoryPromptsSection() {
   }
 
   async function savePrompt(cat: Category) {
+    if (!(await ensureWritableClient())) return;
     setSavingIds((prev) => new Set(prev).add(cat.id));
     const supabase = createClient();
     await supabase
@@ -581,6 +590,7 @@ function CategoryPromptsSection() {
   }
 
   async function addMajor() {
+    if (!(await ensureWritableClient())) return;
     const name = newMajorName.trim();
     if (!name) return;
     setAddingMajor(true);
@@ -600,6 +610,7 @@ function CategoryPromptsSection() {
   }
 
   async function addMinor(majorId: string) {
+    if (!(await ensureWritableClient())) return;
     const name = (newMinorNames[majorId] ?? "").trim();
     if (!name) return;
     setAddingMinorIds((prev) => new Set(prev).add(majorId));
@@ -624,6 +635,7 @@ function CategoryPromptsSection() {
   }
 
   async function deleteCategory(id: string) {
+    if (!(await ensureWritableClient())) return;
     const supabase = createClient();
     const cat = categories.find((c) => c.id === id);
     if (cat?.level === "major") {
@@ -901,6 +913,7 @@ function FeedbackSection() {
   }, []);
 
   async function updateStatus(id: string, status: FeedbackStatus) {
+    if (!(await ensureWritableClient())) return;
     setUpdatingId(id);
     const supabase = createClient();
     await supabase.from("feedback_logs").update({ status }).eq("id", id);
