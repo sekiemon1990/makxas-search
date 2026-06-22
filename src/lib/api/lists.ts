@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { ensureWritableClient } from "@/lib/auth/readonly-client";
 import type { SourceKey } from "@/lib/types";
 import type { ConditionRank } from "@/lib/conditions";
 import type { Period, ShippingFilter } from "@/components/SearchFormFields";
@@ -191,6 +192,7 @@ export async function fetchCurrentListId(): Promise<string | null> {
 }
 
 export async function setCurrentListId(listId: string): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const supabase = createClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) return;
@@ -206,6 +208,7 @@ export async function setCurrentListId(listId: string): Promise<void> {
 }
 
 export async function clearCurrentListId(): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const supabase = createClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) return;
@@ -217,6 +220,7 @@ export async function clearCurrentListId(): Promise<void> {
 }
 
 export async function createListRow(name?: string): Promise<AppraisalList | null> {
+  if (!(await ensureWritableClient())) return null;
   const supabase = createClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) return null;
@@ -241,6 +245,7 @@ export async function createListRow(name?: string): Promise<AppraisalList | null
 }
 
 export async function deleteListRow(listId: string): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const supabase = createClient();
   const { error } = await supabase
     .from("appraisal_lists")
@@ -250,6 +255,7 @@ export async function deleteListRow(listId: string): Promise<void> {
 }
 
 export async function renameListRow(listId: string, name: string): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const supabase = createClient();
   const { error } = await supabase
     .from("appraisal_lists")
@@ -259,6 +265,7 @@ export async function renameListRow(listId: string, name: string): Promise<void>
 }
 
 export async function touchListRow(listId: string): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const supabase = createClient();
   const { error } = await supabase
     .from("appraisal_lists")
@@ -273,6 +280,7 @@ export async function insertListItem(
   initial?: { status?: ListItemStatus; result?: ListItemResult; isAdditional?: boolean },
   itemType: "search" | "listing" = "search"
 ): Promise<ListItem | null> {
+  if (!(await ensureWritableClient())) return null;
   const supabase = createClient();
   const status = initial?.status ?? "queued";
   const result = initial?.result;
@@ -315,6 +323,7 @@ export async function updateListItem(
   itemId: string,
   updates: Partial<ListItem>
 ): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const supabase = createClient();
   const patch: Record<string, unknown> = {};
   if (updates.status !== undefined) patch.status = updates.status;
@@ -344,6 +353,7 @@ export async function updateListItem(
 }
 
 export async function deleteListItem(itemId: string): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const supabase = createClient();
   const { error } = await supabase
     .from("list_items")
@@ -353,6 +363,7 @@ export async function deleteListItem(itemId: string): Promise<void> {
 }
 
 export async function clearListItems(listId: string): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const supabase = createClient();
   const { error } = await supabase
     .from("list_items")
@@ -365,6 +376,7 @@ export async function clearListItems(listId: string): Promise<void> {
 export async function updateItemsSortOrder(
   orders: { id: string; sortOrder: number }[]
 ): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const supabase = createClient();
   await Promise.all(
     orders.map(({ id, sortOrder }) =>

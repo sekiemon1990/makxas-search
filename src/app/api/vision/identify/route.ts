@@ -3,6 +3,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { getRequestUserId, logApiUsage } from "@/lib/api-cost";
 import { requireApiAuth } from "@/lib/auth/requireApiAuth";
+import {
+  buildProductIdentificationPrompt,
+  normalizeProductIdentificationResults,
+  type ProductIdentificationResult,
+} from "@/lib/vision/product-identification";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -14,14 +19,6 @@ type ItemInput = {
 
 type RequestBody = {
   items: ItemInput[];
-};
-
-type IdentifyResult = {
-  id: string;
-  productName: string;
-  model: string;
-  keywords: string;
-  confidence: "high" | "medium" | "low";
 };
 
 function dataUrlToBase64(dataUrl: string): {
@@ -83,19 +80,7 @@ export async function POST(req: Request) {
   // Instruction text at the start
   contentParts.push({
     type: "text",
-    text: `以下の商品写真グループを見て、それぞれの商品を特定してください。
-各グループにJSONで回答してください。
-
-フォーマット（JSON配列のみ、前置き不要）:
-[
-  {
-    "id": "<グループID>",
-    "productName": "商品の正式名称",
-    "model": "型番・バリエーション（不明なら空文字）",
-    "keywords": "フリマサイト検索用キーワード",
-    "confidence": "high/medium/low"
-  }
-]`,
+    text: buildProductIdentificationPrompt(),
   });
 
   // Add each item's photos with a label
@@ -148,16 +133,21 @@ export async function POST(req: Request) {
       );
     }
 
-    let results: IdentifyResult[];
+    let results: ProductIdentificationResult[];
     try {
       // Strip markdown code fences if present
       const raw = textBlock.text
         .replace(/^```(?:json)?\s*/i, "")
         .replace(/\s*```$/i, "")
         .trim();
-      results = JSON.parse(raw) as IdentifyResult[];
+      results = normalizeProductIdentificationResults(
+        JSON.parse(raw),
+        body.items.map((item) => item.id),
+      );
     } catch {
-      console.error("[vision/identify] JSON parse error, raw:", textBlock.text);
+      console.error("[vision/identify] JSON parse error", {
+        responseLength: textBlock.text.length,
+      });
       return NextResponse.json(
         { error: "AI からの応答が JSON として読めませんでした" },
         { status: 502 },

@@ -18,6 +18,8 @@ import { CONDITION_RANKS, CONDITION_META, type ConditionRank } from "@/lib/condi
 import { findDictionaryMatches } from "@/lib/keyword-dictionary";
 import { enqueueOfflineSearch } from "@/lib/offline-queue";
 import { toast } from "@/lib/toast";
+import { useReadonlyDemo } from "@/lib/auth/readonly-client";
+import { READONLY_DEMO_MESSAGE } from "@/lib/auth/readonly";
 import {
   recordSearchKeyword,
   fetchUserKeywordSuggestions,
@@ -77,6 +79,7 @@ export function SearchFormFields({
   onAfterSubmit,
 }: Props) {
   const router = useRouter();
+  const readonlyDemo = useReadonlyDemo();
 
   const [keyword, setKeyword] = useState(initial?.keyword ?? "");
   const [excludes, setExcludes] = useState(initial?.excludes ?? "");
@@ -137,6 +140,12 @@ export function SearchFormFields({
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const trimmed = keyword.trim();
+    if (readonlyDemo) {
+      setAiCandidates([]);
+      setAiLoading(false);
+      aiAbortRef.current?.abort();
+      return;
+    }
     // 空欄 / 1 文字なら AI 候補は出さない
     if (trimmed.length < 2) {
       setAiCandidates([]);
@@ -189,11 +198,12 @@ export function SearchFormFields({
       clearTimeout(t);
       controller.abort();
     };
-  }, [keyword]);
+  }, [keyword, readonlyDemo]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // ページマウント時に Vercel function を pre-warm (コールドスタート対策)
   useEffect(() => {
+    if (readonlyDemo) return;
     fetch("/api/keyword-suggest", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -201,7 +211,7 @@ export function SearchFormFields({
     }).catch(() => {
       // pre-warm は失敗しても無視
     });
-  }, []);
+  }, [readonlyDemo]);
 
   // 表示用の統合候補
   const showAi = aiCandidates.length > 0;
@@ -256,6 +266,10 @@ export function SearchFormFields({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (readonlyDemo) {
+      toast({ message: READONLY_DEMO_MESSAGE, variant: "info" });
+      return;
+    }
     if (!keyword.trim()) return;
     if (selectedSources.length === 0) return;
 
@@ -433,6 +447,7 @@ export function SearchFormFields({
         <CameraButton
           onKeywordChange={(kw) => setKeyword(kw)}
           onSubmit={() => formRef.current?.requestSubmit()}
+          disabled={readonlyDemo}
         />
         </div>
       </div>
@@ -643,11 +658,17 @@ export function SearchFormFields({
 
       <button
         type="submit"
+        disabled={readonlyDemo}
         className="tap-scale h-14 mt-2 rounded-lg bg-primary text-primary-foreground font-semibold text-base hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 shadow-sm"
       >
         <Search size={20} />
-        {submitLabel}
+        {readonlyDemo ? "デモでは検索できません" : submitLabel}
       </button>
+      {readonlyDemo && (
+        <p className="text-xs text-muted leading-relaxed">
+          デモアカウントでは、サンプルデータの閲覧だけできます。
+        </p>
+      )}
     </form>
   );
 }
@@ -764,14 +785,20 @@ function VoiceInputButton({
 function CameraButton({
   onKeywordChange,
   onSubmit,
+  disabled = false,
 }: {
   onKeywordChange: (kw: string) => void;
   onSubmit: () => void;
+  disabled?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleFile(file: File) {
+    if (disabled) {
+      toast({ message: READONLY_DEMO_MESSAGE, variant: "info" });
+      return;
+    }
     setLoading(true);
     try {
       const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -826,14 +853,21 @@ function CameraButton({
         capture="environment"
         className="hidden"
         onChange={(e) => {
+          if (disabled) return;
           const f = e.target.files?.[0];
           if (f) handleFile(f);
         }}
       />
       <button
         type="button"
-        onClick={() => inputRef.current?.click()}
-        disabled={loading}
+        onClick={() => {
+          if (disabled) {
+            toast({ message: READONLY_DEMO_MESSAGE, variant: "info" });
+            return;
+          }
+          inputRef.current?.click();
+        }}
+        disabled={loading || disabled}
         aria-label="カメラで商品を撮影して検索"
         className="shrink-0 w-12 h-12 rounded-lg border border-border bg-surface text-muted hover:text-foreground hover:bg-surface-2 flex items-center justify-center transition-colors disabled:opacity-50"
       >

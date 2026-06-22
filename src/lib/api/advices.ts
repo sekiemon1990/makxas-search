@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { ensureWritableClient } from "@/lib/auth/readonly-client";
 
 export type SavedAdvice = {
   searchKey: string;
@@ -42,6 +43,7 @@ export async function isAdviceSaved(searchKey: string): Promise<boolean> {
 export async function saveAdvice(
   advice: Omit<SavedAdvice, "savedAt">
 ): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const supabase = createClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) return;
@@ -61,6 +63,7 @@ export async function saveAdvice(
 }
 
 export async function removeSavedAdvice(searchKey: string): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const supabase = createClient();
   await supabase
     .from("saved_advices")

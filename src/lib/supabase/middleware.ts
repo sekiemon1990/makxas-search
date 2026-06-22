@@ -1,5 +1,12 @@
 import { createMakxasMiddlewareClient } from "@makxas/supabase-next";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  isReadonlyDemoEmail,
+  READONLY_DEMO_MESSAGE,
+  READONLY_DEMO_WRITE_DENIED,
+} from "@/lib/auth/readonly";
+
+const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 export async function updateSession(request: NextRequest) {
   const { supabase, response } = createMakxasMiddlewareClient(request);
@@ -23,6 +30,21 @@ export async function updateSession(request: NextRequest) {
 
   // 共有ページ・管理画面は別途制御するため除外
   const isSharePath = path.startsWith("/share");
+
+  if (
+    user &&
+    MUTATION_METHODS.has(request.method.toUpperCase()) &&
+    path.startsWith("/api") &&
+    isReadonlyDemoEmail(user.email)
+  ) {
+    return NextResponse.json(
+      {
+        error: READONLY_DEMO_WRITE_DENIED,
+        message: READONLY_DEMO_MESSAGE,
+      },
+      { status: 403 },
+    );
+  }
 
   if (!user && !isAuthPath && !isSharePath && !isStaticPath) {
     const url = request.nextUrl.clone();

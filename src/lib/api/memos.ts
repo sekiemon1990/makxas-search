@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { ensureWritableClient } from "@/lib/auth/readonly-client";
 
 export type MemoRow = {
   id: string;
@@ -40,6 +41,7 @@ export async function upsertSearchMemo(
   searchKeyword: string,
   body: string
 ): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const supabase = createClient();
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError) console.error("[memos] auth error:", userError);
@@ -90,6 +92,7 @@ export async function upsertListingMemo(
   listingRef: string,
   body: string
 ): Promise<void> {
+  if (!(await ensureWritableClient())) return;
   const supabase = createClient();
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError) console.error("[memos] auth error:", userError);
