@@ -119,6 +119,14 @@ describe("/api/ai-advisor/adoption POST", () => {
         recommendation_rate: 0.64,
         decision: "accepted",
         listings_count: 24,
+        shared_event: {
+          source_system: "makxas-search",
+          action: "approved",
+          source_ref: {
+            type: "ai_advisor_recommendation",
+            id: "ai-advisor-recommendation:1",
+          },
+        },
       },
       why_source: "ai_advisor_recommendation_adoption",
       actor: "makxas-search:ai-advisor",

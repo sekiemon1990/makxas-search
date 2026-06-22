@@ -1,3 +1,5 @@
+import type { AiEventContract } from "@makxas/ai-kit";
+
 export type AssessmentAdoptionDecision = "accepted" | "rejected";
 
 export type AssessmentRecommendationForAdoption = {
@@ -27,6 +29,7 @@ export type AssessmentAdoptionPayload = {
     recommendation_index: number | null;
     decision: AssessmentAdoptionDecision;
     listings_count: number;
+    shared_event: AiEventContract;
   };
   why_source: "ai_advisor_recommendation_adoption";
   actor: "makxas-search:ai-advisor";
@@ -82,6 +85,37 @@ export function buildAssessmentAdoptionPayload(
       ? null
       : clampNonNegativeInteger(input.recommendation.index);
 
+  const recommendationRef =
+    recommendationIndex === null
+      ? "ai-advisor-recommendation:unknown"
+      : `ai-advisor-recommendation:${recommendationIndex}`;
+  const sharedEvent: AiEventContract = {
+    source_system: "makxas-search",
+    conversation_id: "ai-advisor-adoption",
+    actor: {
+      id: "makxas-search:ai-advisor",
+      type: "ai",
+      label: "AI査定アシスタント",
+    },
+    tenant_scope: {
+      id: "makxas",
+      type: "company",
+      label: "makxas",
+    },
+    account_scope: {
+      id: "makxas-search",
+      type: "tool",
+      label: "マクサスサーチ",
+    },
+    source_ref: {
+      type: "ai_advisor_recommendation",
+      id: recommendationRef,
+      label: "AI査定提案",
+    },
+    usage: null,
+    action: input.decision === "accepted" ? "approved" : "rejected",
+  };
+
   return {
     domain: "assessment_price_suggestion",
     what: {
@@ -96,6 +130,7 @@ export function buildAssessmentAdoptionPayload(
       recommendation_index: recommendationIndex,
       decision: input.decision,
       listings_count: listingsCount,
+      shared_event: sharedEvent,
     },
     why_source: "ai_advisor_recommendation_adoption",
     actor: "makxas-search:ai-advisor",

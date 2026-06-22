@@ -32,6 +32,32 @@ describe("assessment adoption payload", () => {
         recommendation_index: 1,
         decision: "accepted",
         listings_count: 34,
+        shared_event: {
+          source_system: "makxas-search",
+          conversation_id: "ai-advisor-adoption",
+          actor: {
+            id: "makxas-search:ai-advisor",
+            type: "ai",
+            label: "AI査定アシスタント",
+          },
+          tenant_scope: {
+            id: "makxas",
+            type: "company",
+            label: "makxas",
+          },
+          account_scope: {
+            id: "makxas-search",
+            type: "tool",
+            label: "マクサスサーチ",
+          },
+          source_ref: {
+            type: "ai_advisor_recommendation",
+            id: "ai-advisor-recommendation:1",
+            label: "AI査定提案",
+          },
+          usage: null,
+          action: "approved",
+        },
       },
       why_source: "ai_advisor_recommendation_adoption",
       actor: "makxas-search:ai-advisor",
