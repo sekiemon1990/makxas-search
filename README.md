@@ -60,6 +60,11 @@ cp .env.example .env.local
 本番では Vercel の Environment Variables に `GATEWAY_BASE_URL` と `GATEWAY_SHARED_TOKEN` を設定する。
 `GATEWAY_AGENT_READONLY_TOKEN` がある場合、`npm run smoke:assessment-decision-ledger-read` で
 Decision Ledger の `assessment_price_suggestion` recent を読み、PIIなしの採用率メトリクスだけを再計算する。
+
+`npm run smoke:assessment-phase-b-loop` は Decision Ledger recent と Gateway Metabase 経由の
+`assessed_amount` read を突合し、ADR-0009 Phase B の月次採用率レポートを read-only で生成する。
+GitHub Actions `Assessment Phase B Loop` は毎月1日 01:23 UTC に同じ処理を実行する。
+secret 未設定の環境では `gateway_read_token_missing` で skip し、アプリ本体は止めない。
 `GATEWAY_BI_READONLY_TOKEN` または `GATEWAY_AGENT_READONLY_TOKEN` がある場合、`npm run smoke:assessment-core-assessed-read` で
 Gateway Metabase read-only routeから `project_id` / `item_id` / `assessed_amount` / `contracted_at` だけを取得し、AI査定提案との突合に使う。
 `MIKOMIKU_OBJECTIVE_INTERNAL_TOKEN` は AI / CI の本番 self-smoke が、通常ログイン cookie なしで

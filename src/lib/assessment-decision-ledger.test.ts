@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   assessmentMetricFromDecisionLedgerRecord,
   assessmentSuggestionFromDecisionLedgerRecord,
+  fetchAssessmentDecisionLedgerRecords,
   fetchAssessmentDecisionLedgerSummary,
   summarizeAssessmentDecisionLedgerRecords,
 } from "./assessment-decision-ledger";
@@ -111,6 +112,38 @@ describe("assessment decision ledger read model", () => {
       reason: "gateway_read_token_missing",
       domain: "assessment_price_suggestion",
     });
+  });
+
+  it("Gateway recentのraw recordsを突合用に保持する", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      Response.json({
+        ok: true,
+        judgments: [
+          {
+            id: "judgment-1",
+            domain: "assessment_price_suggestion",
+            what: {
+              keyword: "iPhone 13",
+              project_id: "project-1",
+              recommendation_price: 31_000,
+              decision: "accepted",
+            },
+          },
+        ],
+      }),
+    );
+
+    const result = await fetchAssessmentDecisionLedgerRecords({
+      baseUrl: "https://gateway.example.test/",
+      token: "read-token",
+      limit: 50,
+      fetchImpl,
+    });
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") throw new Error("unexpected skip");
+    expect(result.records).toHaveLength(1);
+    expect(result.records[0]?.id).toBe("judgment-1");
   });
 
   it("Gateway recentをread-onlyで取得する", async () => {
