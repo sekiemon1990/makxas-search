@@ -52,10 +52,13 @@ cp .env.example .env.local
 | `ADMIN_EMAILS` | 管理画面を許可するメールアドレス（カンマ区切り） |
 | `GATEWAY_BASE_URL` | Decision Ledger API。既定: `https://makxas-integrations-gateway.vercel.app` |
 | `GATEWAY_SHARED_TOKEN` | Gateway 共有トークン（サーバ専用。`NEXT_PUBLIC_` 禁止） |
+| `GATEWAY_AGENT_READONLY_TOKEN` | Gateway Decision Ledger recent の read-only 再取得用トークン（あればこちらを優先） |
 | `MIKOMIKU_OBJECTIVE_INTERNAL_TOKEN` | objective API の内部 self-smoke 用トークン（サーバ専用。`NEXT_PUBLIC_` 禁止） |
 
 `GATEWAY_SHARED_TOKEN` が未設定の場合、見込金額の算出自体は継続し、Decision Ledger への記録だけを skip する。
 本番では Vercel の Environment Variables に `GATEWAY_BASE_URL` と `GATEWAY_SHARED_TOKEN` を設定する。
+`GATEWAY_AGENT_READONLY_TOKEN` がある場合、`npm run smoke:assessment-decision-ledger-read` で
+Decision Ledger の `assessment_price_suggestion` recent を読み、PIIなしの採用率メトリクスだけを再計算する。
 `MIKOMIKU_OBJECTIVE_INTERNAL_TOKEN` は AI / CI の本番 self-smoke が、通常ログイン cookie なしで
 `/api/estimate/mikomiku/objective` を実行するためだけに使う。顧客PIIを body に入れない。
 
