@@ -4,6 +4,7 @@ import {
   redactLikelyPersonalInfo,
   summarizeAssessmentAdoptionMetrics,
 } from "./assessment-adoption";
+import type { AssessmentSuggestionForReconciliation } from "./assessment-reconciliation";
 
 const DEFAULT_GATEWAY_BASE_URL =
   "https://makxas-integrations-gateway.vercel.app";
@@ -82,6 +83,12 @@ function asNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function asNullableString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
 export function assessmentMetricFromDecisionLedgerRecord(
   record: GatewayDecisionLedgerRecord,
 ): AssessmentAdoptionMetricInput | null {
@@ -99,6 +106,27 @@ export function assessmentMetricFromDecisionLedgerRecord(
   return {
     decision,
     recommendationPrice,
+  };
+}
+
+export function assessmentSuggestionFromDecisionLedgerRecord(
+  record: GatewayDecisionLedgerRecord,
+): AssessmentSuggestionForReconciliation | null {
+  if (record.domain !== ASSESSMENT_DOMAIN || !record.id || !isObject(record.what)) {
+    return null;
+  }
+  assertSafeAssessmentLedgerWhat(record.what);
+
+  const recommendedPrice = asNumber(record.what.recommendation_price);
+  if (recommendedPrice === null) return null;
+
+  return {
+    suggestionId: record.id,
+    keyword: asNullableString(record.what.keyword) ?? "",
+    projectId: asNullableString(record.what.project_id),
+    itemId: asNullableString(record.what.item_id),
+    recommendedPrice,
+    recommendedRank: asNullableString(record.what.recommendation_rank) ?? undefined,
   };
 }
 

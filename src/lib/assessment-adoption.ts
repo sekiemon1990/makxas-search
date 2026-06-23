@@ -12,6 +12,8 @@ export type AssessmentRecommendationForAdoption = {
 export type AssessmentAdoptionInput = {
   keyword: string;
   productGuess?: string;
+  projectId?: string | null;
+  itemId?: string | null;
   decision: AssessmentAdoptionDecision;
   recommendation: AssessmentRecommendationForAdoption;
   listingsCount?: number;
@@ -22,6 +24,8 @@ export type AssessmentAdoptionPayload = {
   what: {
     keyword: string;
     product_guess: string | null;
+    project_id: string | null;
+    item_id: string | null;
     suggestion_source: "ai_advisor";
     recommendation_rank: string;
     recommendation_price: number;
@@ -66,6 +70,11 @@ function clampNonNegativeInteger(value: unknown): number {
   const parsed = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(parsed)) return 0;
   return Math.max(0, Math.round(parsed));
+}
+
+function nullableInternalPointer(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? redactLikelyPersonalInfo(trimmed) : null;
 }
 
 export function confidenceFromListingsCount(listingsCount: number): number {
@@ -123,6 +132,8 @@ export function buildAssessmentAdoptionPayload(
       product_guess: input.productGuess
         ? redactLikelyPersonalInfo(input.productGuess)
         : null,
+      project_id: nullableInternalPointer(input.projectId),
+      item_id: nullableInternalPointer(input.itemId),
       suggestion_source: "ai_advisor",
       recommendation_rank: input.recommendation.rank.trim(),
       recommendation_price: recommendationPrice,
