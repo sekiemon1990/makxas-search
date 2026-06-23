@@ -14,6 +14,7 @@
     "provision:demo": "node scripts/provision-demo-account.mjs",
     "smoke:readonly-demo": "node scripts/readonly-demo-smoke.mjs",
     "test:watch": "vitest",
+    "smoke:assessment-core-assessed-read": "node scripts/smoke-assessment-core-assessed-read.mjs",
     "smoke:assessment-decision-ledger-read": "node scripts/smoke-assessment-decision-ledger-read.mjs",
     "prepare": "husky"
   },
