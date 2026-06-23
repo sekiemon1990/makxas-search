@@ -38,7 +38,20 @@ export type AssessmentDecisionLedgerReadResult =
       domain: typeof ASSESSMENT_DOMAIN;
     };
 
-type FetchAssessmentDecisionLedgerOptions = {
+export type AssessmentDecisionLedgerRecordsReadResult =
+  | {
+      status: "ok";
+      domain: typeof ASSESSMENT_DOMAIN;
+      records: GatewayDecisionLedgerRecord[];
+    }
+  | {
+      status: "skipped";
+      reason: "gateway_read_token_missing";
+      domain: typeof ASSESSMENT_DOMAIN;
+      records: [];
+    };
+
+export type FetchAssessmentDecisionLedgerOptions = {
   baseUrl?: string;
   token?: string;
   limit?: number;
@@ -160,15 +173,16 @@ export function summarizeAssessmentDecisionLedgerRecords(
   };
 }
 
-export async function fetchAssessmentDecisionLedgerSummary(
+export async function fetchAssessmentDecisionLedgerRecords(
   options: FetchAssessmentDecisionLedgerOptions = {},
-): Promise<AssessmentDecisionLedgerReadResult> {
+): Promise<AssessmentDecisionLedgerRecordsReadResult> {
   const token = gatewayReadToken(options.token);
   if (!token) {
     return {
       status: "skipped",
       reason: "gateway_read_token_missing",
       domain: ASSESSMENT_DOMAIN,
+      records: [],
     };
   }
 
@@ -196,5 +210,23 @@ export async function fetchAssessmentDecisionLedgerSummary(
   }
 
   const body = (await response.json()) as { judgments?: GatewayDecisionLedgerRecord[] };
-  return summarizeAssessmentDecisionLedgerRecords(body.judgments ?? []);
+  return {
+    status: "ok",
+    domain: ASSESSMENT_DOMAIN,
+    records: body.judgments ?? [],
+  };
+}
+
+export async function fetchAssessmentDecisionLedgerSummary(
+  options: FetchAssessmentDecisionLedgerOptions = {},
+): Promise<AssessmentDecisionLedgerReadResult> {
+  const result = await fetchAssessmentDecisionLedgerRecords(options);
+  if (result.status === "skipped") {
+    return {
+      status: "skipped",
+      reason: result.reason,
+      domain: result.domain,
+    };
+  }
+  return summarizeAssessmentDecisionLedgerRecords(result.records);
 }
