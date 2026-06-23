@@ -11,6 +11,7 @@
     "analyze": "ANALYZE=1 next build",
     "test": "vitest run",
     "test:watch": "vitest",
+    "smoke:assessment-decision-ledger-read": "node scripts/smoke-assessment-decision-ledger-read.mjs",
     "prepare": "husky"
   },
   "dependencies": {
