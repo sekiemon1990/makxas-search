@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   reconcileAssessmentSuggestion,
+  reconcileAssessmentSuggestionsWithCore,
   suggestionBounds,
   summarizeAssessmentReconciliation,
 } from "./assessment-reconciliation";
@@ -64,6 +65,54 @@ describe("assessment reconciliation", () => {
       notAdopted: 1,
       adoptionRatePct: 50,
       averageAbsDeviationPct: 27.5,
+    });
+  });
+
+  it("Decision Ledger由来suggestionをcore assessed_amount行へ内部IDで突合する", () => {
+    const results = reconcileAssessmentSuggestionsWithCore(
+      [
+        {
+          suggestionId: "judgment-1",
+          keyword: "iPhone 13",
+          projectId: "project-1",
+          itemId: "item-1",
+          recommendedPrice: 30_000,
+        },
+        {
+          suggestionId: "judgment-2",
+          keyword: "watch",
+          projectId: "project-2",
+          recommendedPrice: 80_000,
+        },
+        {
+          suggestionId: "judgment-3",
+          keyword: "camera",
+          projectId: "missing",
+          recommendedPrice: 50_000,
+        },
+      ],
+      [
+        {
+          projectId: "project-1",
+          itemId: "item-1",
+          assessedAmount: 32_000,
+        },
+        {
+          projectId: "project-2",
+          itemId: null,
+          assessedAmount: 100_000,
+        },
+      ],
+    );
+
+    expect(results.map((result) => result.suggestionId)).toEqual([
+      "judgment-1",
+      "judgment-2",
+    ]);
+    expect(summarizeAssessmentReconciliation(results)).toMatchObject({
+      total: 2,
+      adopted: 1,
+      notAdopted: 1,
     });
   });
 });

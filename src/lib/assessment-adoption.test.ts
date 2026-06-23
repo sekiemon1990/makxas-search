@@ -10,6 +10,8 @@ describe("assessment adoption payload", () => {
     const payload = buildAssessmentAdoptionPayload({
       keyword: "iPhone 13 090-1234-5678",
       productGuess: "山田様 iPhone yamada@example.com",
+      projectId: "project-123",
+      itemId: "item-456",
       decision: "accepted",
       listingsCount: 34,
       recommendation: {
@@ -25,6 +27,8 @@ describe("assessment adoption payload", () => {
       what: {
         keyword: "iPhone 13 [redacted_phone]",
         product_guess: "山田様 iPhone [redacted_email]",
+        project_id: "project-123",
+        item_id: "item-456",
         suggestion_source: "ai_advisor",
         recommendation_rank: "状態B",
         recommendation_price: 31_000,

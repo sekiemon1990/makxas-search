@@ -11,6 +11,8 @@ export const runtime = "nodejs";
 type AdoptionRequestBody = {
   keyword?: unknown;
   productGuess?: unknown;
+  projectId?: unknown;
+  itemId?: unknown;
   decision?: unknown;
   listingsCount?: unknown;
   recommendation?: {
@@ -49,6 +51,9 @@ function parseBody(body: AdoptionRequestBody) {
   const keyword = typeof body.keyword === "string" ? body.keyword.trim() : "";
   const productGuess =
     typeof body.productGuess === "string" ? body.productGuess.trim() : undefined;
+  const projectId =
+    typeof body.projectId === "string" ? body.projectId.trim() : undefined;
+  const itemId = typeof body.itemId === "string" ? body.itemId.trim() : undefined;
   const recommendation = body.recommendation;
   const rank =
     typeof recommendation?.rank === "string"
@@ -66,6 +71,8 @@ function parseBody(body: AdoptionRequestBody) {
   return {
     keyword,
     productGuess,
+    projectId,
+    itemId,
     decision: body.decision,
     listingsCount: listingsCount ?? 0,
     recommendation: {

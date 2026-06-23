@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   assessmentMetricFromDecisionLedgerRecord,
+  assessmentSuggestionFromDecisionLedgerRecord,
   fetchAssessmentDecisionLedgerSummary,
   summarizeAssessmentDecisionLedgerRecords,
 } from "./assessment-decision-ledger";
@@ -74,6 +75,30 @@ describe("assessment decision ledger read model", () => {
         },
       }),
     ).toThrow(/high-risk value/);
+  });
+
+  it("Decision Ledger rowをassessed_amount突合用suggestionへ戻す", () => {
+    expect(
+      assessmentSuggestionFromDecisionLedgerRecord({
+        id: "judgment-1",
+        domain: "assessment_price_suggestion",
+        what: {
+          keyword: "iPhone 13",
+          project_id: "project-1",
+          item_id: "item-1",
+          recommendation_rank: "状態B",
+          recommendation_price: 31_000,
+          decision: "accepted",
+        },
+      }),
+    ).toEqual({
+      suggestionId: "judgment-1",
+      keyword: "iPhone 13",
+      projectId: "project-1",
+      itemId: "item-1",
+      recommendedRank: "状態B",
+      recommendedPrice: 31_000,
+    });
   });
 
   it("read token未設定ならローカルsmokeをskipできる", async () => {

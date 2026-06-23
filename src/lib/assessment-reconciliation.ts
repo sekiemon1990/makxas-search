@@ -1,6 +1,8 @@
 export type AssessmentSuggestionForReconciliation = {
   suggestionId: string;
   keyword: string;
+  projectId?: string | null;
+  itemId?: string | null;
   recommendedPrice: number;
   recommendedRank?: string;
   lowerBound?: number;
@@ -84,6 +86,32 @@ export function reconcileAssessmentSuggestion(
     adopted,
     deviationPct,
   };
+}
+
+function pointerMatches(
+  suggestion: AssessmentSuggestionForReconciliation,
+  assessed: CoreAssessedAmountRecord,
+): boolean {
+  if (suggestion.itemId && assessed.itemId) {
+    return suggestion.itemId === assessed.itemId;
+  }
+  return Boolean(suggestion.projectId && suggestion.projectId === assessed.projectId);
+}
+
+export function reconcileAssessmentSuggestionsWithCore(
+  suggestions: AssessmentSuggestionForReconciliation[],
+  assessedRecords: CoreAssessedAmountRecord[],
+  tolerance = DEFAULT_TOLERANCE,
+): AssessmentReconciliationResult[] {
+  const results: AssessmentReconciliationResult[] = [];
+  for (const suggestion of suggestions) {
+    const assessed = assessedRecords.find((record) =>
+      pointerMatches(suggestion, record),
+    );
+    if (!assessed) continue;
+    results.push(reconcileAssessmentSuggestion(suggestion, assessed, tolerance));
+  }
+  return results;
 }
 
 export function summarizeAssessmentReconciliation(
