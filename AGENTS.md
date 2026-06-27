@@ -154,6 +154,7 @@ Phase 0b より `file:vendor/makxas-ai-kit-0.0.1.tgz` として `vendor/` に同
 
 横断決定の正本は `makxas-ai-native/decisions/`。本 repo に関係する確定事項:
 
+- **ADR-0074（Company Memory Phase2+ の保持・削除・GO境界）**: 本 repo から記憶層へ出せるのは、商品カテゴリ、相場価格帯、査定採用/見送り理由、追加買取カテゴリ、非PII集計などの **PIIなし derived summary + source pointer** のみ。顧客名・電話番号・住所・問い合わせ本文・画像/OCR全文・raw prompt/response・secret は記憶層へ保持せず、必要な場合も source pointer だけにする。外部モデルへ raw PII を送らない。正本側で削除/訂正されたデータに紐づく derived item は削除連動または無効化が必須。詳細: `makxas-ai-native/decisions/ADR-0074-company-memory-phase2-retention-delete-go-boundary.md`。
 - **ADR-0029（全ツール共通 埋め込みAIアシスタント基盤のサービス境界）**: 1. **対話オーケストレータと埋め込みアシスタント基盤を分離する。** makxas-agent の `chatwork-webhook`（対話オーケストレータ・約4,649行のモノリス）には**同居させない**。 2. **集約サーバは当面作らない。** 共有ライブラリ（`makxas-ai-kit`）＋ 統制規約で実現する（ハイブリッド）。詳細: `makxas-ai-native/decisions/ADR-0029-copilot-assistant-platform-boundary.md`。
 
 - **ADR-0009（中核バリューチェーン AI 化 - AHR 38%→50%超）**: このリポジトリは **Phase B** の担当（相場査定・追加買取 AI 高度化）。目標: AHR 累計 +6.3pt。Phase A/C は makxas-integrations-gateway 担当。詳細: `makxas-ai-native/decisions/ADR-0009-core-value-chain-ahr-uplift.md`。
