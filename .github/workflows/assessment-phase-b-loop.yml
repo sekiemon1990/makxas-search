@@ -1,0 +1,36 @@
+name: Assessment Phase B Loop
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 1 1 * *"
+
+permissions:
+  contents: read
+
+jobs:
+  monthly-readonly-reconciliation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run read-only Phase B loop
+        run: npm run smoke:assessment-phase-b-loop
+        env:
+          GATEWAY_BASE_URL: ${{ secrets.GATEWAY_BASE_URL }}
+          GATEWAY_AGENT_READONLY_TOKEN: ${{ secrets.GATEWAY_AGENT_READONLY_TOKEN }}
+          GATEWAY_BI_READONLY_TOKEN: ${{ secrets.GATEWAY_BI_READONLY_TOKEN }}
+          GATEWAY_SHARED_TOKEN: ${{ secrets.GATEWAY_SHARED_TOKEN }}
+          METABASE_CORE_DATABASE_ID: ${{ secrets.METABASE_CORE_DATABASE_ID }}
+          ASSESSMENT_PHASE_B_WINDOW_DAYS: "31"
+          ASSESSMENT_PHASE_B_LEDGER_LIMIT: "500"
+          ASSESSMENT_PHASE_B_ASSESSED_LIMIT: "1000"

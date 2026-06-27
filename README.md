@@ -53,12 +53,20 @@ cp .env.example .env.local
 | `GATEWAY_BASE_URL` | Decision Ledger API。既定: `https://makxas-integrations-gateway.vercel.app` |
 | `GATEWAY_SHARED_TOKEN` | Gateway 共有トークン（サーバ専用。`NEXT_PUBLIC_` 禁止） |
 | `GATEWAY_AGENT_READONLY_TOKEN` | Gateway Decision Ledger recent の read-only 再取得用トークン（あればこちらを優先） |
+| `GATEWAY_BI_READONLY_TOKEN` | Gateway Metabase read-only 経由で core assessed_amount を取得する場合の最小権限トークン |
 | `MIKOMIKU_OBJECTIVE_INTERNAL_TOKEN` | objective API の内部 self-smoke 用トークン（サーバ専用。`NEXT_PUBLIC_` 禁止） |
 
 `GATEWAY_SHARED_TOKEN` が未設定の場合、見込金額の算出自体は継続し、Decision Ledger への記録だけを skip する。
 本番では Vercel の Environment Variables に `GATEWAY_BASE_URL` と `GATEWAY_SHARED_TOKEN` を設定する。
 `GATEWAY_AGENT_READONLY_TOKEN` がある場合、`npm run smoke:assessment-decision-ledger-read` で
 Decision Ledger の `assessment_price_suggestion` recent を読み、PIIなしの採用率メトリクスだけを再計算する。
+
+`npm run smoke:assessment-phase-b-loop` は Decision Ledger recent と Gateway Metabase 経由の
+`assessed_amount` read を突合し、ADR-0009 Phase B の月次採用率レポートを read-only で生成する。
+GitHub Actions `Assessment Phase B Loop` は毎月1日 01:23 UTC に同じ処理を実行する。
+secret 未設定の環境では `gateway_read_token_missing` で skip し、アプリ本体は止めない。
+`GATEWAY_BI_READONLY_TOKEN` または `GATEWAY_AGENT_READONLY_TOKEN` がある場合、`npm run smoke:assessment-core-assessed-read` で
+Gateway Metabase read-only routeから `project_id` / `item_id` / `assessed_amount` / `contracted_at` だけを取得し、AI査定提案との突合に使う。
 `MIKOMIKU_OBJECTIVE_INTERNAL_TOKEN` は AI / CI の本番 self-smoke が、通常ログイン cookie なしで
 `/api/estimate/mikomiku/objective` を実行するためだけに使う。顧客PIIを body に入れない。
 

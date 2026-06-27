@@ -24,6 +24,8 @@ function makeReq(body: unknown): Request {
 const validBody = {
   keyword: "iPhone 13",
   productGuess: "iPhone",
+  projectId: "project-123",
+  itemId: "item-456",
   decision: "accepted",
   listingsCount: 24,
   recommendation: {
@@ -114,6 +116,8 @@ describe("/api/ai-advisor/adoption POST", () => {
       what: {
         keyword: "iPhone 13",
         product_guess: "iPhone",
+        project_id: "project-123",
+        item_id: "item-456",
         recommendation_rank: "状態B",
         recommendation_price: 31_000,
         recommendation_rate: 0.64,

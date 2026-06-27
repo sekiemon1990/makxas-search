@@ -4,6 +4,7 @@ import {
   redactLikelyPersonalInfo,
   summarizeAssessmentAdoptionMetrics,
 } from "./assessment-adoption";
+import type { AssessmentSuggestionForReconciliation } from "./assessment-reconciliation";
 
 const DEFAULT_GATEWAY_BASE_URL =
   "https://makxas-integrations-gateway.vercel.app";
@@ -37,7 +38,20 @@ export type AssessmentDecisionLedgerReadResult =
       domain: typeof ASSESSMENT_DOMAIN;
     };
 
-type FetchAssessmentDecisionLedgerOptions = {
+export type AssessmentDecisionLedgerRecordsReadResult =
+  | {
+      status: "ok";
+      domain: typeof ASSESSMENT_DOMAIN;
+      records: GatewayDecisionLedgerRecord[];
+    }
+  | {
+      status: "skipped";
+      reason: "gateway_read_token_missing";
+      domain: typeof ASSESSMENT_DOMAIN;
+      records: [];
+    };
+
+export type FetchAssessmentDecisionLedgerOptions = {
   baseUrl?: string;
   token?: string;
   limit?: number;
@@ -82,6 +96,12 @@ function asNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function asNullableString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
 export function assessmentMetricFromDecisionLedgerRecord(
   record: GatewayDecisionLedgerRecord,
 ): AssessmentAdoptionMetricInput | null {
@@ -99,6 +119,27 @@ export function assessmentMetricFromDecisionLedgerRecord(
   return {
     decision,
     recommendationPrice,
+  };
+}
+
+export function assessmentSuggestionFromDecisionLedgerRecord(
+  record: GatewayDecisionLedgerRecord,
+): AssessmentSuggestionForReconciliation | null {
+  if (record.domain !== ASSESSMENT_DOMAIN || !record.id || !isObject(record.what)) {
+    return null;
+  }
+  assertSafeAssessmentLedgerWhat(record.what);
+
+  const recommendedPrice = asNumber(record.what.recommendation_price);
+  if (recommendedPrice === null) return null;
+
+  return {
+    suggestionId: record.id,
+    keyword: asNullableString(record.what.keyword) ?? "",
+    projectId: asNullableString(record.what.project_id),
+    itemId: asNullableString(record.what.item_id),
+    recommendedPrice,
+    recommendedRank: asNullableString(record.what.recommendation_rank) ?? undefined,
   };
 }
 
@@ -132,15 +173,16 @@ export function summarizeAssessmentDecisionLedgerRecords(
   };
 }
 
-export async function fetchAssessmentDecisionLedgerSummary(
+export async function fetchAssessmentDecisionLedgerRecords(
   options: FetchAssessmentDecisionLedgerOptions = {},
-): Promise<AssessmentDecisionLedgerReadResult> {
+): Promise<AssessmentDecisionLedgerRecordsReadResult> {
   const token = gatewayReadToken(options.token);
   if (!token) {
     return {
       status: "skipped",
       reason: "gateway_read_token_missing",
       domain: ASSESSMENT_DOMAIN,
+      records: [],
     };
   }
 
@@ -168,5 +210,23 @@ export async function fetchAssessmentDecisionLedgerSummary(
   }
 
   const body = (await response.json()) as { judgments?: GatewayDecisionLedgerRecord[] };
-  return summarizeAssessmentDecisionLedgerRecords(body.judgments ?? []);
+  return {
+    status: "ok",
+    domain: ASSESSMENT_DOMAIN,
+    records: body.judgments ?? [],
+  };
+}
+
+export async function fetchAssessmentDecisionLedgerSummary(
+  options: FetchAssessmentDecisionLedgerOptions = {},
+): Promise<AssessmentDecisionLedgerReadResult> {
+  const result = await fetchAssessmentDecisionLedgerRecords(options);
+  if (result.status === "skipped") {
+    return {
+      status: "skipped",
+      reason: result.reason,
+      domain: result.domain,
+    };
+  }
+  return summarizeAssessmentDecisionLedgerRecords(result.records);
 }
