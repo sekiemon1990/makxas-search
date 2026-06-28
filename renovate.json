@@ -1,0 +1,4 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["github>sekiemon1990/makxas-ai-native:renovate-safe-pilot"]
+}
