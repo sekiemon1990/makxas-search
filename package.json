@@ -49,12 +49,12 @@
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.1.6",
     "eslint": "^9.39.4",
-    "eslint-config-next": "^16.2.4",
+    "eslint-config-next": "^16.2.9",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.5",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "vitest": "^4.1.6"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.9"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": "eslint --fix --no-warn-ignored"
