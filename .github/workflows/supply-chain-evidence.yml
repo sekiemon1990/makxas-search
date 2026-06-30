@@ -62,7 +62,7 @@ jobs:
           retention-days: 14
 
       - name: Attest dependency manifest
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.event.repository.private == false
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: .supply-chain/dependency-manifest.sha256
