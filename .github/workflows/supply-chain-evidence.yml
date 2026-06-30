@@ -1,0 +1,68 @@
+name: Supply Chain Evidence
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    paths:
+      - ".github/workflows/supply-chain-evidence.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "pnpm-lock.yaml"
+      - "yarn.lock"
+      - "bun.lock"
+      - "**/package.json"
+      - "**/package-lock.json"
+      - "**/pnpm-lock.yaml"
+      - "**/yarn.lock"
+      - "**/bun.lock"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+  security-events: write
+
+jobs:
+  dependency-manifest:
+    name: Dependency Manifest Attestation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner network audit
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate dependency manifest hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .supply-chain
+          find . \
+            \( -path './.git' -o -path './node_modules' -o -path './.next' -o -path './dist' -o -path './build' -o -path './coverage' \) -prune \
+            -o \( -name package.json -o -name package-lock.json -o -name pnpm-lock.yaml -o -name yarn.lock -o -name bun.lock \) \
+            -type f -print | sort > .supply-chain/dependency-files.txt
+          test -s .supply-chain/dependency-files.txt
+          while IFS= read -r file; do
+            sha256sum "$file"
+          done < .supply-chain/dependency-files.txt > .supply-chain/dependency-manifest.sha256
+
+      - name: Upload dependency manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-manifest-${{ github.run_id }}
+          path: |
+            .supply-chain/dependency-files.txt
+            .supply-chain/dependency-manifest.sha256
+          retention-days: 14
+
+      - name: Attest dependency manifest
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: .supply-chain/dependency-manifest.sha256
