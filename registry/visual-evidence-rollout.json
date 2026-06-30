@@ -1,0 +1,14 @@
+{
+  "schema": "makxas.visual_evidence.repo_rollout.v1",
+  "repo": "makxas-search",
+  "kind": "ui_no_e2e_manifest",
+  "rollout_status": "done",
+  "ui_e2e": false,
+  "sensitive": true,
+  "blocked_sensitive_required": true,
+  "upload_raw_artifacts": false,
+  "not_applicable_reason": "Assessment UI exists, but no Playwright E2E workflow is currently installed. Existing verification is smoke/readonly script based.",
+  "alternative_verification": "verify:production and readonly assessment smokes provide text evidence. Any screenshot/trace must be blocked_sensitive unless a non-sensitive route is explicitly allowlisted.",
+  "future_ui_trigger": "Adding Playwright, e2e-prod.yml, visual diff, screenshot, or trace storage requires Visual Evidence manifest gating before merge.",
+  "db_impact": "no_db_impact"
+}
