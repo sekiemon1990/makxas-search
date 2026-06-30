@@ -1,0 +1,119 @@
+{
+  "schema": "makxas.visual_evidence.policy.v1",
+  "updated_at": "2026-06-28",
+  "default_manifest": "visual-evidence-manifest.json",
+  "conditional_gate_report": "reports/visual-evidence-conditional-gates.json",
+  "conditional_gate_command": "node scripts/visual-evidence-conditional-gates.mjs --out reports/visual-evidence-conditional-gates.json --md reports/visual-evidence-conditional-gates.md",
+  "token_reduction_targets": {
+    "normal_development": "15-25%",
+    "ui_gui_heavy": "30-60%",
+    "screenshot_autocompact_incidents": "60-90%"
+  },
+  "read_order": [
+    "dom_api_console_network_text",
+    "visual-evidence-manifest.json",
+    "ocr_summary",
+    "thumbnail",
+    "crop",
+    "full_screenshot",
+    "video_keyframes"
+  ],
+  "phase1": {
+    "playwright": {
+      "trace": ["retain-on-failure", "on-first-retry"],
+      "video": "retain-on-failure",
+      "screenshot": "only-on-failure"
+    },
+    "github_actions_artifact": {
+      "retention_days_allowed": [5, 14],
+      "upload_gate": "contains_sensitive == false",
+      "manifest_fields_required": ["artifact_retention_until", "sha256"]
+    }
+  },
+  "sensitive_capture_forbidden": [
+    "secret_screen",
+    "pii_screen",
+    "oauth_authorization",
+    "oauth_callback",
+    "token_screen",
+    "two_factor_auth",
+    "captcha",
+    "password_screen",
+    "identity_verification",
+    "production_personal_data_screen"
+  ],
+  "sensitive_route_patterns": [
+    "secret",
+    "token",
+    "oauth",
+    "callback",
+    "2fa",
+    "captcha",
+    "password",
+    "customers?/.+",
+    "leads?/.+",
+    "contacts?/.+",
+    "accounting/.+",
+    "billing/.+"
+  ],
+  "blocked_sensitive_alternative_evidence": [
+    "http_status",
+    "non_sensitive_dom_count",
+    "console_error_count",
+    "network_error_count",
+    "step_log",
+    "verification_status"
+  ],
+  "phase2_r2": {
+    "bucket_public_access": false,
+    "signed_url_required": true,
+    "default_ttl_hours": 24,
+    "handover_max_ttl_days": 7,
+    "lifecycle_required": true,
+    "delete_required": true,
+    "access_log_required": true,
+    "provider_lifecycle_live_rule": "visual-evidence-14d-delete",
+    "provider_billing_actual_source": "reports/visual-evidence-r2-live-status.json#billing_actual",
+    "object_log_export_default": "deferred_until_needed",
+    "human_gate": [
+      "object_log_export",
+      "billing_api_automation",
+      "permission_change",
+      "api_token_rotation",
+      "secret_rotation"
+    ]
+  },
+  "phase3_argos": {
+    "poc_repo_count": 1,
+    "initial_screen_count": "10-30",
+    "fallback_for_small_repo": "playwright_native_visual_comparisons",
+    "auth_default": "github_oidc_tokenless",
+    "token_secret_fallback_only": true,
+    "live_project": "sekiemon1990/makxas-fc-dev",
+    "live_status_source": "reports/visual-evidence-argos-live-status.json",
+    "upload_enabled_variable": "ARGOS_ENABLED",
+    "human_gate": ["paid_plan_if_needed"],
+    "upload_enabled": true,
+    "live_upload_status": "live_upload_passed_main_baseline_auto_approved",
+    "pr_build_url": "https://app.argos-ci.com/sekiemon1990/makxas-fc-dev/builds/2",
+    "main_baseline_build_url": "https://app.argos-ci.com/sekiemon1990/makxas-fc-dev/builds/3",
+    "upload_safety_gate": "contains_sensitive == false && route_allowlist_passed"
+  },
+  "phase4_gyazo": {
+    "role": "helper_only",
+    "required_access_policy": "only_me",
+    "delete_after_required": true,
+    "r2_escape_path_required": true,
+    "gateway_catalog_required": true,
+    "secret_locator_only": true,
+    "status": "policy_complete_live_upload_disallowed_until_private_expiry_delete_supported",
+    "live_upload_allowed": false,
+    "official_docs_checked_at": "2026-06-28",
+    "unsupported_or_unverified_api_controls": [
+      "access_policy=only_me",
+      "delete_after",
+      "DELETE endpoint"
+    ],
+    "default_storage_when_unverified": "r2_or_github_actions_artifact"
+  }
+}
